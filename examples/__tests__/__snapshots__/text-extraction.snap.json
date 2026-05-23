@@ -1,0 +1,31 @@
+{
+  "$meta": {
+    "createdAt": "2026-05-22T11:53:16.950Z",
+    "modelHash": "efcf30858a13f54daacabfb6324aee1d5e595756e930bedcc3e3edcdbe9a940a",
+    "promptHash": "b2b9d941cfcedb07d7ac7ff9d46514c7f27fa0182a16ee2e01f0903b43126a57",
+    "schemaHash": "242d1b6346d9f2b1e1ef601f92bde767b0c35f06cc1cc9995fb515e591b7c7f5",
+    "tidemarkVersion": "0.1.0"
+  },
+  "news-brief": {
+    "publishedDate": {
+      "match": "baseline"
+    },
+    "summary": {
+      "match": "baseline"
+    },
+    "title": {
+      "match": "baseline"
+    }
+  },
+  "short-article": {
+    "publishedDate": {
+      "match": "baseline"
+    },
+    "summary": {
+      "match": "baseline"
+    },
+    "title": {
+      "match": "baseline"
+    }
+  }
+}

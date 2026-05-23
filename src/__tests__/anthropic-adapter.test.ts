@@ -1,0 +1,317 @@
+// src/__tests__/anthropic-adapter.test.ts
+// PROV-02 coverage: AnthropicAdapter implements ProviderAdapter with mocked SDK client.
+// D-18: No real API key, no network calls — SDK client is replaced via object substitution.
+
+import { describe, expect, it, vi } from 'vitest';
+import * as z from 'zod';
+import { AnthropicAdapter } from '../adapters/anthropic.js';
+import { buildAnthropicTools, convertToolSchemas } from '../tools/convert.js';
+
+// ────────────────────────────────────────────────────────────────────────────
+// Fixture: mocked Anthropic message response (non-streaming)
+// ────────────────────────────────────────────────────────────────────────────
+const MOCK_TEXT_MESSAGE = {
+  id: 'msg_01abc',
+  type: 'message' as const,
+  role: 'assistant' as const,
+  model: 'claude-sonnet-4-5-20250929', // ← the RESPONSE model — may differ from request
+  content: [{ type: 'text' as const, text: '{"x":1}' }],
+  usage: { input_tokens: 12, output_tokens: 7 },
+  stop_reason: 'end_turn' as const,
+  stop_sequence: null,
+};
+
+const MOCK_TOOL_USE_MESSAGE = {
+  id: 'msg_02def',
+  type: 'message' as const,
+  role: 'assistant' as const,
+  model: 'claude-sonnet-4-5-20250929',
+  content: [
+    { type: 'tool_use' as const, id: 'tool_01', name: 'lookup', input: { q: 'hello' } },
+  ],
+  usage: { input_tokens: 20, output_tokens: 15 },
+  stop_reason: 'tool_use' as const,
+  stop_sequence: null,
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Helper: create an AnthropicAdapter and replace its private client with a mock
+// ────────────────────────────────────────────────────────────────────────────
+function createMockedAdapter(fixtureMessage: typeof MOCK_TEXT_MESSAGE | typeof MOCK_TOOL_USE_MESSAGE) {
+  const adapter = new AnthropicAdapter('claude-sonnet-4-6');
+  // Replace the private client using object substitution (no real Anthropic() call occurs
+  // because we replace after construction — the mock never touches the network)
+  const mockCreate = vi.fn().mockResolvedValue(fixtureMessage);
+  const mockStream = vi.fn().mockReturnValue({
+    on: vi.fn().mockReturnThis(),
+    finalMessage: vi.fn().mockResolvedValue(fixtureMessage),
+    abort: vi.fn(),
+    [Symbol.asyncIterator]: async function* () { yield { type: 'text', delta: '{"x":1}' }; },
+  });
+  (adapter as unknown as { client: unknown }).client = {
+    messages: {
+      create: mockCreate,
+      stream: mockStream,
+    },
+  };
+  return { adapter, mockCreate, mockStream };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// AnthropicAdapter — type and interface compliance
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicAdapter — interface compliance', () => {
+  it('constructs without an API key and is assignable to ProviderAdapter', () => {
+    const adapter = new AnthropicAdapter('claude-sonnet-4-6');
+    expect(adapter).toBeDefined();
+    expect(typeof adapter.generate).toBe('function');
+    expect(typeof adapter.stream).toBe('function');
+  });
+
+  it('constructs with an explicit apiKey option', () => {
+    const adapter = new AnthropicAdapter('claude-haiku-3-20240307', { apiKey: 'sk-test-key' });
+    expect(adapter).toBeDefined();
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// AnthropicAdapter.generate() — happy path
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicAdapter.generate() — text response', () => {
+  it('resolves with correct text field', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.text).toBe('{"x":1}');
+  });
+
+  it('sets modelVersion from response.model — NOT from constructor model (Pitfall 3)', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    // adapter was constructed with 'claude-sonnet-4-6'
+    // but mock response has model 'claude-sonnet-4-5-20250929'
+    // modelVersion MUST be from the response
+    expect(response.modelVersion).toBe('claude-sonnet-4-5-20250929');
+    expect(response.modelVersion).not.toBe('claude-sonnet-4-6');
+  });
+
+  it('sets inputTokens and outputTokens from usage', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.inputTokens).toBe(12);
+    expect(response.outputTokens).toBe(7);
+  });
+
+  it('sets stopReason from message.stop_reason', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.stopReason).toBe('end_turn');
+  });
+
+  it('rawResponse is the mocked message object', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.rawResponse).toBe(MOCK_TEXT_MESSAGE);
+  });
+
+  it('rawRequest is the params object passed to messages.create — NOT the ProviderRequest', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+      maxTokens: 1024,
+    });
+    // rawRequest should be the Anthropic API params object, not the ProviderRequest
+    const capturedParams = mockCreate.mock.calls[0][0];
+    expect(response.rawRequest).toBe(capturedParams);
+    // rawRequest must NOT contain an apiKey field (T-03-01 security mitigation)
+    expect((response.rawRequest as Record<string, unknown>)).not.toHaveProperty('apiKey');
+  });
+
+  it('toolCalls is empty or undefined for end_turn responses', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.toolCalls).toBeUndefined();
+  });
+
+  it('calls messages.create with model from constructor, not from response', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    await adapter.generate({ messages: [{ role: 'user', content: 'test' }] });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.model).toBe('claude-sonnet-4-6');
+  });
+
+  it('defaults max_tokens to 4096 when maxTokens not provided', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    await adapter.generate({ messages: [{ role: 'user', content: 'test' }] });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.max_tokens).toBe(4096);
+  });
+
+  it('passes maxTokens override through to params', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    await adapter.generate({ messages: [{ role: 'user', content: 'test' }], maxTokens: 2048 });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.max_tokens).toBe(2048);
+  });
+
+  it('passes system string through to params', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+      system: 'You are a helpful assistant',
+    });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.system).toBe('You are a helpful assistant');
+  });
+
+  it('passes temperature through to params', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+      temperature: 0.5,
+    });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.temperature).toBe(0.5);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// AnthropicAdapter.generate() — tool_use response
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicAdapter.generate() — tool_use response', () => {
+  it('sets stopReason to tool_use', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TOOL_USE_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.stopReason).toBe('tool_use');
+  });
+
+  it('maps tool_use content blocks to toolCalls', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TOOL_USE_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.toolCalls).toBeDefined();
+    expect(response.toolCalls).toHaveLength(1);
+    expect(response.toolCalls![0]).toEqual({ id: 'tool_01', name: 'lookup', input: { q: 'hello' } });
+  });
+
+  it('text is empty string when only tool_use content block present', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TOOL_USE_MESSAGE);
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    expect(response.text).toBe('');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// AnthropicAdapter.stream() — returns a TidemarkStreamSource
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicAdapter.stream()', () => {
+  it('returns an object with Symbol.asyncIterator, finalResponse, and abort', () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const source = adapter.stream({ messages: [{ role: 'user', content: 'test' }] });
+    expect(typeof source[Symbol.asyncIterator]).toBe('function');
+    expect(typeof source.finalResponse).toBe('function');
+    expect(typeof source.abort).toBe('function');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// buildAnthropicTools
+// ────────────────────────────────────────────────────────────────────────────
+describe('buildAnthropicTools()', () => {
+  it('maps ProviderToolDefinitions to Anthropic Tool array', () => {
+    const defs = [
+      { name: 'lookup', description: 'd', inputSchema: { type: 'object', properties: {} } },
+    ];
+    const tools = buildAnthropicTools(defs);
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('lookup');
+    expect(tools[0].input_schema).toEqual({ type: 'object', properties: {} });
+  });
+
+  it('uses name as description when no description provided', () => {
+    const defs = [
+      { name: 'search', inputSchema: { type: 'object', properties: {} } },
+    ];
+    const tools = buildAnthropicTools(defs);
+    expect(tools[0].description).toBe('search');
+  });
+
+  it('uses provided description when present', () => {
+    const defs = [
+      { name: 'search', description: 'Search for things', inputSchema: { type: 'object', properties: {} } },
+    ];
+    const tools = buildAnthropicTools(defs);
+    expect(tools[0].description).toBe('Search for things');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// convertToolSchemas
+// ────────────────────────────────────────────────────────────────────────────
+describe('convertToolSchemas()', () => {
+  it('converts a Zod object schema to ProviderToolDefinition', () => {
+    const tools = convertToolSchemas({
+      lookup: z.object({ q: z.string() }),
+    });
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('lookup');
+    expect(tools[0].inputSchema).toBeDefined();
+    expect(tools[0].inputSchema).toHaveProperty('properties');
+  });
+
+  it('includes description from z.describe()', () => {
+    const tools = convertToolSchemas({
+      search: z.object({ q: z.string() }).describe('Search tool'),
+    });
+    expect(tools[0].description).toBe('Search tool');
+  });
+
+  it('returns no description when no .describe() is set', () => {
+    const tools = convertToolSchemas({
+      lookup: z.object({ q: z.string() }),
+    });
+    expect(tools[0].description).toBeUndefined();
+  });
+
+  it('returns a properties key in inputSchema (confirms z.toJSONSchema output)', () => {
+    const tools = convertToolSchemas({
+      lookup: z.object({ q: z.string() }),
+    });
+    expect(typeof (tools[0].inputSchema as Record<string, unknown>).properties).not.toBe('undefined');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// Security: rawRequest must not contain apiKey (T-03-01)
+// ────────────────────────────────────────────────────────────────────────────
+describe('Security: T-03-01 — apiKey not in rawRequest', () => {
+  it('rawRequest params do not contain an apiKey field', async () => {
+    const adapter = new AnthropicAdapter('claude-sonnet-4-6', { apiKey: 'sk-secret-key' });
+    const mockCreate = vi.fn().mockResolvedValue(MOCK_TEXT_MESSAGE);
+    (adapter as unknown as { client: unknown }).client = {
+      messages: { create: mockCreate, stream: vi.fn() },
+    };
+    const response = await adapter.generate({
+      messages: [{ role: 'user', content: 'test' }],
+    });
+    const rawReq = response.rawRequest as Record<string, unknown>;
+    expect(rawReq).not.toHaveProperty('apiKey');
+    expect(rawReq).not.toHaveProperty('api_key');
+  });
+});

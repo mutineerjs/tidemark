@@ -1,0 +1,19 @@
+{
+  "$meta": {
+    "createdAt": "2026-05-21T13:26:40.036Z",
+    "modelHash": "efcf30858a13f54daacabfb6324aee1d5e595756e930bedcc3e3edcdbe9a940a",
+    "promptHash": "73173cb33ab35dc5e5d0fd01a390844a206b1224c15baa7b5eb5578285d27be9",
+    "schemaHash": "7e412bc318bd1aab1851e87e396933cede67ab81e04ded8550ce09048e7f5d41",
+    "tidemarkVersion": "0.1.0"
+  },
+  "billing-dispute": {
+    "category": "refund",
+    "confidence": 0.95,
+    "priority": "high"
+  },
+  "tech-support": {
+    "category": "technical",
+    "confidence": 0.95,
+    "priority": "high"
+  }
+}

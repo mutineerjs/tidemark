@@ -1,0 +1,49 @@
+{
+  "$meta": {
+    "createdAt": "2026-05-21T13:30:09.073Z",
+    "modelHash": "efcf30858a13f54daacabfb6324aee1d5e595756e930bedcc3e3edcdbe9a940a",
+    "promptHash": "ea185251ecd1105753a3e7baee67deb1f903a73e161673607b259a0b9c4cbcdb",
+    "schemaHash": "ee546956b13223eb3af6142eb26b251841d58b00d577a72a1edc17c05f012ff7",
+    "tidemarkVersion": "0.1.0"
+  },
+  "open-source": {
+    "bullets": [
+      "Eliminates redundant work by providing pre-built, battle-tested solutions that developers can integrate immediately rather than building from scratch",
+      "Enables rapid prototyping and experimentation with free access to extensive libraries, frameworks, and tools across every technology stack",
+      "Facilitates collaborative learning through transparent codebases where developers can study real-world implementations and best practices from experts",
+      "Reduces debugging time with community-driven support, extensive documentation, and collective problem-solving from thousands of active contributors",
+      "Accelerates deployment cycles by leveraging continuous integration tools, automated testing frameworks, and DevOps solutions maintained by the community"
+    ],
+    "headline": {
+      "match": "baseline"
+    },
+    "tags": [
+      "open-source",
+      "developer-productivity",
+      "software-development",
+      "collaboration",
+      "coding-efficiency",
+      "developer-tools"
+    ]
+  },
+  "typescript-testing": {
+    "bullets": [
+      "Snapshot testing captures LLM outputs as baseline fixtures, enabling developers to detect unexpected changes in model responses, prompt engineering modifications, or API version updates across application iterations",
+      "TypeScript's strong typing combined with frameworks like Jest or Vitest allows teams to version-control expected LLM behaviors, making it easier to review output drifts through diff comparisons in pull requests",
+      "Implement selective snapshot matching for non-deterministic elements by normalizing timestamps, randomized IDs, or variable content while preserving the structural integrity and semantic meaning of LLM responses",
+      "Establish testing strategies that balance coverage with practicality: use snapshots for critical user-facing outputs, structured data extraction validation, and multi-turn conversation flows while allowing flexibility for creative content",
+      "Integrate snapshot regeneration workflows into CI/CD pipelines with explicit review processes, ensuring that updates to LLM outputs are intentional changes rather than regressions or hallucinations"
+    ],
+    "headline": {
+      "match": "baseline"
+    },
+    "tags": [
+      "typescript",
+      "snapshot-testing",
+      "llm-testing",
+      "test-automation",
+      "prompt-engineering",
+      "ci-cd"
+    ]
+  }
+}
