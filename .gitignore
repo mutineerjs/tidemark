@@ -5,3 +5,4 @@ dist/
 examples/__snapshots__/
 tmp/
 .env
+coverage/

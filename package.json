@@ -2,15 +2,30 @@
   "name": "tidemark",
   "version": "0.1.0",
   "description": "Snapshot testing for LLM features — detect prompt/model/schema drift before production does",
-  "keywords": ["llm", "snapshot", "testing", "vitest", "drift", "ai", "zod", "typescript"],
+  "keywords": [
+    "llm",
+    "snapshot",
+    "testing",
+    "vitest",
+    "drift",
+    "ai",
+    "zod",
+    "typescript"
+  ],
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "README.md", "BENCHMARK.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "BENCHMARK.md"
+  ],
   "sideEffects": false,
-  "engines": { "node": ">=18.0.0" },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -33,7 +48,9 @@
     "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
-    "vitest": { "optional": true }
+    "vitest": {
+      "optional": true
+    }
   },
   "dependencies": {
     "diff": "^9.0.0",
@@ -45,6 +62,7 @@
     "@standard-schema/spec": "^1.1.0",
     "@types/diff": "^7.0.0",
     "@types/node": "^25.9.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "openai": "^6.38.0",
     "tsup": "^8.5.1",
     "tsx": "^4.19.0",
