@@ -2,6 +2,15 @@
   "name": "tidemark",
   "version": "0.1.0",
   "description": "Snapshot testing for LLM features — detect prompt/model/schema drift before production does",
+  "author": "Billy Jones",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mutineerjs/tidemark.git"
+  },
+  "homepage": "https://github.com/mutineerjs/tidemark#readme",
+  "bugs": {
+    "url": "https://github.com/mutineerjs/tidemark/issues"
+  },
   "keywords": [
     "llm",
     "snapshot",
@@ -20,7 +29,8 @@
   "files": [
     "dist",
     "README.md",
-    "BENCHMARK.md"
+    "BENCHMARK.md",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
   "engines": {
@@ -73,9 +83,13 @@
   },
   "scripts": {
     "build": "tsup",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
