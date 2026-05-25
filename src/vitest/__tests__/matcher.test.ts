@@ -801,8 +801,10 @@ describe('toMatchTidemarkSnapshot — sampling gate (step 7)', () => {
 // ---------------------------------------------------------------------------
 
 describe('PromptFnWrapper.toMatchSnapshot() delegation', () => {
-  it('delegates to toMatchTidemarkSnapshot and passes on first run', async () => {
-    adapter.enqueue({ text: '{"score":1}', modelVersion: 'v1' });
+  it('delegates to toMatchTidemarkSnapshot and passes', async () => {
+    const fs = await import('node:fs');
+    const fsp = await import('node:fs/promises');
+    const { computeHashTriplet } = await import('../../snapshot/engine.js');
 
     const fn = createPromptFn({
       name: 'wrapper-method-test',
@@ -811,6 +813,18 @@ describe('PromptFnWrapper.toMatchSnapshot() delegation', () => {
       outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
       adapter,
     });
+
+    // Mock an existing snapshot so the test passes in CI (updateState === 'none' hits step 5.5)
+    // and in non-CI (updateState === 'new' hits step 7, exact-match for score:number passes).
+    const modelVersion = 'v1';
+    const snapMeta = computeHashTriplet(fn[TIDEMARK_META] as Parameters<typeof computeHashTriplet>[0], modelVersion);
+    const existingSnapshot = { $meta: snapMeta, 'case-1': { score: 1 } };
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(fsp.readFile) as any).mockResolvedValue(JSON.stringify(existingSnapshot));
+
+    // Enqueued for step 7 runCases in non-CI; unused in CI (step 5.5 returns early).
+    adapter.enqueue({ text: '{"score":1}', modelVersion: 'v1' });
 
     const wrapper = expectPromptFn(fn as Parameters<typeof expectPromptFn>[0]);
     // Calls wrapper.toMatchSnapshot which internally calls expect(this).toMatchTidemarkSnapshot
