@@ -41,9 +41,6 @@ export const classifyFn = createPromptFn({
   adapter,
 });
 
-// Import in vitest.setup.ts. Matchers are registered automatically on import.
-import '@mutineerjs/tidemark/vitest';
-
 // Write your snapshot test
 import { expectPromptFn } from '@mutineerjs/tidemark/vitest';
 
@@ -60,8 +57,8 @@ schema, or model changes, with attribution telling you exactly which hash change
 
 ## Vitest Configuration
 
-Snapshot tests make real LLM API calls, so Vitest's default 5 s timeout is too short. Set
-`testTimeout` to at least 30 s in the config that runs your snapshot tests:
+Register Tidemark's matchers by adding the entry point to `setupFiles` in your config — no separate
+setup file needed:
 
 ```typescript
 // vitest.config.ts
@@ -69,10 +66,21 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    setupFiles: ['@mutineerjs/tidemark/vitest'],
     testTimeout: 30_000,
   },
 });
 ```
+
+Alternatively, if you already have a `vitest.setup.ts` for other setup, import it there:
+
+```typescript
+// vitest.setup.ts
+import '@mutineerjs/tidemark/vitest';
+```
+
+Snapshot tests make real LLM API calls, so Vitest's default 5 s timeout is too short. The
+`testTimeout: 30_000` above sets it to 30 s — adjust to fit your provider's latency.
 
 If you have a mixed suite (fast unit tests alongside AI snapshot tests), keep a separate config for
 the snapshot tests and explicitly exclude that directory from the main config:
