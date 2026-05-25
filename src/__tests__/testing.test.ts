@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { mockPromptFn } from '../testing/index.js';
+import { MockAdapter } from '../adapters/mock.js';
 import { TIDEMARK_META } from '../core/meta.js';
 
 // Note: mockPromptFn does NOT exist yet (src/testing/index.ts will be created in Plan 04).
@@ -75,5 +76,34 @@ describe('mockPromptFn()', () => {
     // Adapter should have generate and stream methods (ProviderAdapter interface)
     expect(typeof fn[TIDEMARK_META].adapter.generate).toBe('function');
     expect(typeof fn[TIDEMARK_META].adapter.stream).toBe('function');
+  });
+
+  it('fn[TIDEMARK_META].prompt is callable and returns empty string', () => {
+    const fn = mockPromptFn({ category: 'news' });
+    const result = fn[TIDEMARK_META].prompt({});
+    expect(result).toBe('');
+  });
+});
+
+describe('MockAdapter', () => {
+  it('generate() throws when queue is empty', async () => {
+    const adapter = new MockAdapter();
+    await expect(adapter.generate({ messages: [], system: '' }))
+      .rejects.toThrow('MockAdapter: no more queued responses');
+  });
+
+  it('stream() with empty queue uses default text fallback', () => {
+    const adapter = new MockAdapter();
+    const source = adapter.stream({ messages: [], system: '' });
+    expect(source).toBeDefined();
+    expect(typeof source.finalResponse).toBe('function');
+  });
+
+  it('stream() with no queued modelVersion uses default modelVersion', async () => {
+    const adapter = new MockAdapter();
+    const source = adapter.stream({ messages: [], system: '' });
+    const resp = await source.finalResponse();
+    expect(resp.modelVersion).toBe('mock-model-v1');
+    expect(resp.text).toBe('{"result": "mock"}');
   });
 });

@@ -175,6 +175,22 @@ describe('formatDriftMessage — per-field drift (no hash change)', () => {
     expect(formatDriftMessage(report)).toBe('');
   });
 
+  it('handles undefined expected/received (covers (undefined) placeholder + empty diff body branches)', () => {
+    const report = makeReport({
+      cases: [{
+        name: 'undef-case',
+        fields: [makeFieldResult({ fieldPath: 'val', mode: 'exact', status: 'fail', expected: undefined, received: undefined })],
+      }],
+    });
+    const msg = formatDriftMessage(report);
+    // Field is listed even when expected/received are both undefined
+    expect(msg).toContain('undef-case');
+    expect(msg).toContain('val');
+    expect(msg).toContain('exact');
+    // No diff section appended when both values are identical strings (empty diff body)
+    expect(msg).not.toContain('diff:');
+  });
+
   it('omits passing cases from the output (only failing cases listed)', () => {
     const report = makeReport({
       cases: [

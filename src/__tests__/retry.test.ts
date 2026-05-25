@@ -4,8 +4,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import * as z from 'zod'; // test files may use root 'zod' — simulates user-side code
 
-import { parseWithRetry } from '../core/retry.js';
+import { parseWithRetry, runAgenticLoop } from '../core/retry.js';
 import { TidemarkValidationError } from '../core/errors.js';
+import { MockAdapter } from '../adapters/mock.js';
 
 describe('parseWithRetry', () => {
   it('resolves immediately on valid JSON matching schema (zero retries)', async () => {
@@ -159,5 +160,25 @@ describe('parseWithRetry', () => {
       const e = err as TidemarkValidationError;
       expect(e.lastOutput).toBe(fenced);
     }
+  });
+});
+
+describe('runAgenticLoop', () => {
+  it('throws "No handler for tool" when model calls a tool absent from handlers map', async () => {
+    const adapter = new MockAdapter();
+    adapter.enqueue({
+      text: '',
+      stopReason: 'tool_use',
+      toolCalls: [{ id: 'tc1', name: 'lookup', input: { q: 'x' } }],
+    });
+
+    await expect(
+      runAgenticLoop(
+        adapter,
+        { messages: [{ role: 'user', content: 'test' }], system: '' },
+        {}, // empty handlers — 'lookup' not present
+        10
+      )
+    ).rejects.toThrow('No handler for tool: lookup');
   });
 });

@@ -11,6 +11,7 @@ import { MockAdapter } from '../adapters/mock.js';
 import { createPromptFn } from '../core/factory.js';
 import { TidemarkStream } from '../core/stream.js';
 import { hashZodSchema, hashPromptFn } from '../schema/hash.js';
+import { TidemarkInputValidationError } from '../core/errors.js';
 
 const outputSchema = z.object({ value: z.number() });
 
@@ -168,6 +169,18 @@ describe('TidemarkStream', () => {
     } finally {
       stream.abort(); // D-17
     }
+  });
+
+  it('fn.stream() throws TidemarkInputValidationError synchronously on invalid input', () => {
+    const fn = createPromptFn({
+      name: 'stream-invalid-input',
+      prompt: (i: { text: string }) => `Text: ${i.text}`,
+      inputSchema: z.object({ text: z.string() }),
+      outputSchema,
+      adapter,
+    });
+    expect(() => fn.stream({ text: 42 as unknown as string }))
+      .toThrow(TidemarkInputValidationError);
   });
 });
 

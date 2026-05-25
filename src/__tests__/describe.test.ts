@@ -194,4 +194,41 @@ describe('formatSchemaDescription (enum)', () => {
     const result = formatSchemaDescription(node);
     expect(result).toBe('enum');
   });
+
+  it('renders optional string as "optional string"', () => {
+    const node = walkZodDef(z.optional(z.string()));
+    expect(formatSchemaDescription(node)).toBe('optional string');
+  });
+
+  it('renders nullable number as "nullable number"', () => {
+    const node = walkZodDef(z.nullable(z.number()));
+    expect(formatSchemaDescription(node)).toBe('nullable number');
+  });
+
+  it('renders union of string and number as "string | number"', () => {
+    const node = walkZodDef(z.union([z.string(), z.number()]));
+    expect(formatSchemaDescription(node)).toBe('string | number');
+  });
+
+  it('renders array of string as "array of string"', () => {
+    const node = walkZodDef(z.array(z.string()));
+    expect(formatSchemaDescription(node)).toBe('array of string');
+  });
+});
+
+describe('getFieldDescription — direct .description fallback', () => {
+  it('returns direct .description when globalRegistry has no entry for the schema', () => {
+    const fakeSchema = {
+      _zod: { def: { type: 'string' } },
+      description: 'fallback description',
+    };
+    const result = getFieldDescription(fakeSchema as unknown as import('zod/v4/core').$ZodType);
+    expect(result).toBe('fallback description');
+  });
+
+  it('walkZodDef returns type "unknown" when def.type is undefined', () => {
+    const fakeSchema = { _zod: { def: { type: undefined } } };
+    const node = walkZodDef(fakeSchema as unknown as import('zod/v4/core').$ZodType);
+    expect(node.type).toBe('unknown');
+  });
 });

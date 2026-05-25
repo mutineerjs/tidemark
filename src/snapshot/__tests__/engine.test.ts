@@ -405,6 +405,51 @@ describe('buildBaselineSnapshot', () => {
     expect(result['case-a']).toBeDefined();
     expect(result['case-b']).toBeDefined();
   });
+
+  it('stores raw value when outputSchema is non-object (top-level non-object edge case)', () => {
+    const meta = asMeta({
+      name: 'str-output',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.string() as unknown as z4.$ZodType,
+      adapter,
+    });
+    const snapMeta = { promptHash: 'a', schemaHash: 'b', modelHash: 'c', tidemarkVersion: '0.1.0', createdAt: '2026-01-01T00:00:00Z' };
+    const outputs = new Map<string, unknown>([['case-1', 'hello']]);
+    const result = buildBaselineSnapshot(meta, snapMeta, outputs);
+    expect(result['case-1']).toBe('hello');
+  });
+
+  it('marks optional string field as { match: "baseline" } (isStringNode recurses through optional)', () => {
+    const meta = asMeta({
+      name: 'opt-str',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ name: z.optional(z.string()), count: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+    const snapMeta = { promptHash: 'a', schemaHash: 'b', modelHash: 'c', tidemarkVersion: '0.1.0', createdAt: '2026-01-01T00:00:00Z' };
+    const outputs = new Map<string, unknown>([['case-1', { name: 'Alice', count: 5 }]]);
+    const result = buildBaselineSnapshot(meta, snapMeta, outputs);
+    const entry = result['case-1'] as Record<string, unknown>;
+    expect(entry['name']).toEqual({ match: 'baseline' });
+    expect(entry['count']).toBe(5);
+  });
+
+  it('stores raw value for optional number field (isStringNode returns false for non-string inner)', () => {
+    const meta = asMeta({
+      name: 'opt-num',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.optional(z.number()) }) as unknown as z4.$ZodType,
+      adapter,
+    });
+    const snapMeta = { promptHash: 'a', schemaHash: 'b', modelHash: 'c', tidemarkVersion: '0.1.0', createdAt: '2026-01-01T00:00:00Z' };
+    const outputs = new Map<string, unknown>([['case-1', { score: 0.9 }]]);
+    const result = buildBaselineSnapshot(meta, snapMeta, outputs);
+    const entry = result['case-1'] as Record<string, unknown>;
+    expect(entry['score']).toBe(0.9);
+  });
 });
 
 // ---------------------------------------------------------------------------

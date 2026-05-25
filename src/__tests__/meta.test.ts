@@ -6,7 +6,7 @@ import * as z from 'zod'; // test files may use root 'zod' — simulates user-si
 
 import { createPromptFn } from '../core/factory.js';
 import { MockAdapter } from '../adapters/mock.js';
-import { TIDEMARK_META } from '../core/meta.js';
+import { TIDEMARK_META, setModelPrice, registerModelPrices, MODEL_PRICES } from '../core/meta.js';
 
 describe('TIDEMARK_META metadata (CORE-02)', () => {
   let adapter: MockAdapter;
@@ -154,5 +154,24 @@ describe('Standard Schema type surface (CORE-05)', () => {
     // ~standard must NOT exist at runtime — it is type-only (CORE-05)
     expect('~standard' in fn).toBe(false);
     expect((fn as unknown as Record<string, unknown>)['~standard']).toBeUndefined();
+  });
+});
+
+describe('setModelPrice / registerModelPrices (RESEARCH A1)', () => {
+  it('setModelPrice adds a new entry to MODEL_PRICES', () => {
+    setModelPrice('test-custom-v1', { inputPer1M: 5.0, outputPer1M: 25.0 });
+    expect(MODEL_PRICES['test-custom-v1']).toEqual({ inputPer1M: 5.0, outputPer1M: 25.0 });
+    delete MODEL_PRICES['test-custom-v1'];
+  });
+
+  it('registerModelPrices bulk-adds entries to MODEL_PRICES', () => {
+    registerModelPrices({
+      'bulk-a': { inputPer1M: 1.0, outputPer1M: 2.0 },
+      'bulk-b': { inputPer1M: 3.0, outputPer1M: 4.0 },
+    });
+    expect(MODEL_PRICES['bulk-a']).toEqual({ inputPer1M: 1.0, outputPer1M: 2.0 });
+    expect(MODEL_PRICES['bulk-b']).toEqual({ inputPer1M: 3.0, outputPer1M: 4.0 });
+    delete MODEL_PRICES['bulk-a'];
+    delete MODEL_PRICES['bulk-b'];
   });
 });
