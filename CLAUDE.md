@@ -24,8 +24,8 @@ Tidemark is a TypeScript library that brings snapshot testing to LLM features. E
 ### LLM Provider SDKs
 | Technology | Version (pinned) | Purpose | Why |
 |------------|-----------------|---------|-----|
-| `@anthropic-ai/sdk` | `^0.97.0` | Anthropic API calls | Official SDK, ships `MessageStream` with typed events + async iterator, `messages.stream()` for high-level streaming, `messages.create({ stream: true })` for low-level raw `AsyncIterable`. `client.beta.messages.toolRunner()` automates multi-turn tool loops. Actively released (v0.97.0 dropped 2026-05-19). |
-| `openai` | `^6.38.0` | OpenAI API calls | Official SDK, ships `zodResponseFormat()` helper for Zod-typed structured output via `chat.completions.parse()`. `peerDependencies` now accepts `zod: "^3.25 || ^4.0"`, confirming it supports both Zod generations. Actively released (v6.38.0 dropped 2026-05-15). |
+| `@anthropic-ai/sdk` | `^0.98.0` | Anthropic API calls | Official SDK, ships `MessageStream` with typed events + async iterator, `messages.stream()` for high-level streaming, `messages.create({ stream: true })` for low-level raw `AsyncIterable`. `client.beta.messages.toolRunner()` automates multi-turn tool loops. Actively released (v0.98.0 dropped 2026-05-25). |
+| `openai` | `^6.39.0` | OpenAI API calls | Official SDK, ships `zodResponseFormat()` helper for Zod-typed structured output via `chat.completions.parse()`. `peerDependencies` now accepts `zod: "^3.25 || ^4.0"`, confirming it supports both Zod generations. Actively released (v6.39.0 dropped 2026-05-25). |
 - Anthropic: `anthropic.messages.stream()` returns `MessageStream`. Use `.on('text', ...)` for token streaming. Use `await stream.finalMessage()` for the accumulated result. Expose the raw `Stream` via an escape hatch for users who need it.
 - OpenAI: `client.chat.completions.stream()` returns `ChatCompletionStream` with the same event-emitter + async iterator shape.
 - Internal type: define streaming output as `AsyncIterable<string>` for text-chunk deltas and a `Promise<T>` for the final validated output. This is testable with standard `for await` loops in Vitest.
@@ -42,14 +42,14 @@ Tidemark is a TypeScript library that brings snapshot testing to LLM features. E
 ### Test Runner / Matcher Layer
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
-| `vitest` | `^4.1.6` (peer) | Test runner; Tidemark ships as a Vitest custom matcher | Vitest v4 is current stable (v5 is beta). v4.1 introduced named exports `Matcher`, `MatcherResult`, `MatcherState` from `'vitest'` — these are what library authors need for typed custom matchers. |
-| `@vitest/snapshot` | `^4.1.6` | Snapshot primitives | Exposes `Snapshots.toMatchSnapshot`, `Snapshots.toMatchFileSnapshot` etc. Custom snapshot matchers call these with `.call(this, ...)` to reuse Vitest's storage and update mechanism. Tidemark's `toMatchSnapshot` is built on this primitive. |
-| `@vitest/expect` | `^4.1.6` | `expect` type internals | Sub-package used internally by Vitest; useful for type-only imports when building matchers. |
+| `vitest` | `^4.1.7` (peer) | Test runner; Tidemark ships as a Vitest custom matcher | Vitest v4 is current stable (v5 is beta). v4.1 introduced named exports `Matcher`, `MatcherResult`, `MatcherState` from `'vitest'` — these are what library authors need for typed custom matchers. |
+| `@vitest/snapshot` | `^4.1.7` | Snapshot primitives | Exposes `Snapshots.toMatchSnapshot`, `Snapshots.toMatchFileSnapshot` etc. Custom snapshot matchers call these with `.call(this, ...)` to reuse Vitest's storage and update mechanism. Tidemark's `toMatchSnapshot` is built on this primitive. |
+| `@vitest/expect` | `^4.1.7` | `expect` type internals | Sub-package used internally by Vitest; useful for type-only imports when building matchers. |
 ### Build Toolchain
 | Technology | Version | Purpose | Why |
 |------------|---------|---------|-----|
 | `tsup` | `^8.5.1` | Bundle TypeScript library to ESM + CJS | Industry default for TS npm libraries. Zero-config dual ESM/CJS output, `.d.ts` generation, sourcemaps, tree-shaking, in one tool. 6M+ weekly downloads vs tsdown's ~500K. tsup is active and stable; tsdown is the future successor (from the Vite/Rolldown ecosystem) but is pre-1.0 and has known bugs. Start with tsup. Migrate to tsdown when it hits 1.0 stable. |
-| `typescript` | `^5.5.0` | Type checking, declaration emit | TypeScript 5.5+ required by Zod v4. `isolatedDeclarations` optional for tsup (not required as it is for tsdown). |
+| `typescript` | `^5.9.3` | Type checking, declaration emit | TypeScript 5.5+ required by Zod v4. `isolatedDeclarations` optional for tsup (not required as it is for tsdown). |
 - `tsc` alone: doesn't bundle, doesn't tree-shake, produces one output file per input file. Wrong for an npm library that wants a clean `dist/`.
 - `Rollup` directly: correct tree-shaking but heavy config for this use case. No meaningful benefit over tsup for a library of this scope.
 - `tsdown`: superior ESM-first defaults and ~2x faster DTS generation, but pre-1.0 as of research date. Revisit at tsdown 1.0.
@@ -62,7 +62,7 @@ Tidemark is a TypeScript library that brings snapshot testing to LLM features. E
 ### Supporting Libraries
 | Library | Version | Purpose | When to Use |
 |---------|---------|---------|-------------|
-| `zod-to-json-schema` | `^3.24.5` | Convert Zod schemas to JSON Schema for tool definitions | Needed when passing Zod-typed tool schemas to provider APIs. OpenAI's `zodResponseFormat` uses this internally; Anthropic's tool `input_schema` requires manual conversion. |
+| `zod-to-json-schema` | `^3.25.2` | Convert Zod schemas to JSON Schema for tool definitions | Needed when passing Zod-typed tool schemas to provider APIs. OpenAI's `zodResponseFormat` uses this internally; Anthropic's tool `input_schema` requires manual conversion. |
 | `fast-deep-equal` | `^3.1.3` | Deep equality for field-level diff comparison | Fast, zero-dependency. Use for snapshot field comparison where exact match is required. |
 | `diff` | `^9.0.0` | Text diff for string fields in failure output | Produces unified diffs for string field drift attribution in failure messages. |
 | `ms` | `^2.1.3` | Human-readable latency formatting in failure messages | Tiny, zero-dependency. |
@@ -72,12 +72,11 @@ Tidemark is a TypeScript library that brings snapshot testing to LLM features. E
 ### Development Dependencies
 | Library | Version | Purpose |
 |---------|---------|---------|
-| `vitest` | `^4.1.6` | Tidemark's own test suite (note: also a peer dep) |
-| `@anthropic-ai/sdk` | `^0.97.0` | Tidemark's own development and integration tests |
-| `openai` | `^6.38.0` | OpenAI integration tests |
+| `vitest` | `^4.1.7` | Tidemark's own test suite (note: also a peer dep) |
+| `@anthropic-ai/sdk` | `^0.98.0` | Tidemark's own development and integration tests |
+| `openai` | `^6.39.0` | OpenAI integration tests |
 | `zod` | `^4.4.3` | Tidemark's own type development |
-| `@types/diff` | `^7.0.0` | Type definitions for `diff` package |
-| `tsx` | `^4.19.0` | Run TypeScript scripts during development (`npx tsx`) |
+| `tsx` | `^4.22.3` | Run TypeScript scripts during development (`npx tsx`) |
 ## Alternatives Considered
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
@@ -91,8 +90,8 @@ Tidemark is a TypeScript library that brings snapshot testing to LLM features. E
 | Test runner | Vitest | Jest | Vitest is the current standard for TS/ESM projects. Jest support is explicitly v0.2. |
 ## Key Version Pinning Rationale
 - **Zod v4, not v3:** v4 is current stable (4.4.3), ships as both `zod` (root) and `zod/v4/core`. TypeScript 5.5+ requirement aligns with Tidemark's own TS requirement. v4 implements Standard Schema natively. The Zod team's library-author guidance is to support `^3.25.0 || ^4.0.0` via peer dep, but write internal code against `zod/v4/core`.
-- **OpenAI SDK v6, not v4/v5:** v6.38.0 is current as of 2026-05-15. The v4→v5→v6 progression was rapid; the `openai` package's `dist-tags.next` is v4.0.0-beta (legacy; confusingly named) — ignore it. Use `latest`.
-- **Anthropic SDK 0.x:** Still pre-1.0 versioned but actively maintained. 0.97.0 as of 2026-05-19.
+- **OpenAI SDK v6, not v4/v5:** v6.39.0 is current as of 2026-05-25. The v4→v5→v6 progression was rapid; the `openai` package's `dist-tags.next` is v4.0.0-beta (legacy; confusingly named) — ignore it. Use `latest`.
+- **Anthropic SDK 0.x:** Still pre-1.0 versioned but actively maintained. 0.98.0 as of 2026-05-25.
 - **Vitest v4, not v5:** v5 is in beta (5.0.0-beta.3). Adopt v4.1.x for stability; v5 when stable.
 ## Installation
 # Production peer dependencies (what users of Tidemark must have)
@@ -102,7 +101,7 @@ Tidemark is a TypeScript library that brings snapshot testing to LLM features. E
 ## Sources
 - Anthropic SDK TypeScript — Context7 `/anthropics/anthropic-sdk-typescript` (HIGH confidence)
 - OpenAI Node SDK — Context7 `/openai/openai-node` (HIGH confidence)
-- npm `openai@6.38.0` peerDependencies: `zod: "^3.25 || ^4.0"` — npm registry (HIGH confidence)
+- npm `openai@6.39.0` peerDependencies: `zod: "^3.25 || ^4.0"` — npm registry (HIGH confidence)
 - Vitest extending matchers — Context7 `/vitest-dev/vitest` + https://vitest.dev/guide/extending-matchers (HIGH confidence)
 - Vitest Snapshots API — Context7 `/vitest-dev/vitest` docs on `Snapshots.*` (HIGH confidence)
 - tsup — Context7 `/egoist/tsup` + https://www.pkgpulse.com/blog/tsup-vs-rollup-vs-esbuild-2026 (HIGH confidence)
@@ -111,7 +110,7 @@ Tidemark is a TypeScript library that brings snapshot testing to LLM features. E
 - Zod v4 changelog — https://zod.dev/v4/changelog (HIGH confidence, official)
 - Standard Schema — https://standardschema.dev/schema + npm `@standard-schema/spec@1.1.0` (HIGH confidence)
 - TypeScript dual ESM/CJS — https://lirantal.com/blog/typescript-in-2025-with-esm-and-cjs-npm-publishing (MEDIUM confidence)
-- npm versions verified against registry as of 2026-05-19
+- npm versions verified against registry as of 2026-05-25
 <!-- GSD:stack-end -->
 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
