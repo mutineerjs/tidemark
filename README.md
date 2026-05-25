@@ -58,6 +58,37 @@ it('classifyFn matches snapshot', async () => {
 The first run writes `__snapshots__/classify.snap.json`. Subsequent runs fail if the prompt,
 schema, or model changes, with attribution telling you exactly which hash changed.
 
+## Vitest Configuration
+
+Snapshot tests make real LLM API calls, so Vitest's default 5 s timeout is too short. Set
+`testTimeout` to at least 30 s in the config that runs your snapshot tests:
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    testTimeout: 30_000,
+  },
+});
+```
+
+If you have a mixed suite (fast unit tests alongside AI snapshot tests), keep a separate config for
+the snapshot tests so the slow timeout doesn't apply to everything:
+
+```
+vitest.config.ts          ← unit tests, default timeout
+vitest.snapshot.config.ts ← snapshot tests, testTimeout: 30_000
+```
+
+Run them independently:
+
+```bash
+vitest run                             # unit tests
+vitest run --config vitest.snapshot.config.ts  # snapshot tests
+```
+
 ## How It Works
 
 **`promptFn` as a typed code artifact.** Define prompts once as `createPromptFn()`. Zod validates
