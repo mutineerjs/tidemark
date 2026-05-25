@@ -1,7 +1,8 @@
 // src/__tests__/describe.test.ts
 // Tests for walkZodDef + buildSystemMessage — Zod v4 _zod.def tree walk + describe() injection (CORE-03)
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import * as z4 from 'zod/v4/core';
 import * as z from 'zod'; // test files may use root 'zod' — simulates user-side code
 
 import {
@@ -230,5 +231,130 @@ describe('getFieldDescription — direct .description fallback', () => {
     const fakeSchema = { _zod: { def: { type: undefined } } };
     const node = walkZodDef(fakeSchema as unknown as import('zod/v4/core').$ZodType);
     expect(node.type).toBe('unknown');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// walkZodDef — fallback branches (Zod v3 path + missing field defaults)
+// ---------------------------------------------------------------------------
+
+describe('walkZodDef — Zod v3 path and missing-field fallbacks', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('uses _def when _zod is absent (Zod v3 path)', () => {
+    // Spy on globalRegistry.get so it doesn't crash on a non-Zod object
+    vi.spyOn(
+      (z4 as unknown as { globalRegistry: { get: (...args: unknown[]) => unknown } }).globalRegistry,
+      'get'
+    ).mockReturnValue(undefined);
+
+    const fakeV3 = { _def: { type: 'string' } };
+    const node = walkZodDef(fakeV3 as unknown as z4.$ZodType);
+    expect(node.type).toBe('string');
+  });
+
+  it('enum: uses def.values array when def.entries is absent', () => {
+    vi.spyOn(
+      (z4 as unknown as { globalRegistry: { get: (...args: unknown[]) => unknown } }).globalRegistry,
+      'get'
+    ).mockReturnValue(undefined);
+
+    const fake = { _zod: { def: { type: 'enum', values: ['x', 'y'] } } };
+    const node = walkZodDef(fake as unknown as z4.$ZodType);
+    expect(node.type).toBe('enum');
+    expect(node.values).toEqual(['x', 'y']);
+  });
+
+  it('enum: returns empty values array when neither def.entries nor def.values present', () => {
+    vi.spyOn(
+      (z4 as unknown as { globalRegistry: { get: (...args: unknown[]) => unknown } }).globalRegistry,
+      'get'
+    ).mockReturnValue(undefined);
+
+    const fake = { _zod: { def: { type: 'enum' } } };
+    const node = walkZodDef(fake as unknown as z4.$ZodType);
+    expect(node.type).toBe('enum');
+    expect(node.values).toEqual([]);
+  });
+
+  it('array: items is { type: "unknown" } when neither def.element nor def.items present', () => {
+    vi.spyOn(
+      (z4 as unknown as { globalRegistry: { get: (...args: unknown[]) => unknown } }).globalRegistry,
+      'get'
+    ).mockReturnValue(undefined);
+
+    const fake = { _zod: { def: { type: 'array' } } };
+    const node = walkZodDef(fake as unknown as z4.$ZodType);
+    expect(node.type).toBe('array');
+    expect(node.items?.type).toBe('unknown');
+  });
+
+  it('array: uses def.items fallback when def.element is absent', () => {
+    vi.spyOn(
+      (z4 as unknown as { globalRegistry: { get: (...args: unknown[]) => unknown } }).globalRegistry,
+      'get'
+    ).mockReturnValue(undefined);
+
+    const itemSchema = { _zod: { def: { type: 'number' } } };
+    const fake = { _zod: { def: { type: 'array', items: itemSchema } } };
+    const node = walkZodDef(fake as unknown as z4.$ZodType);
+    expect(node.items?.type).toBe('number');
+  });
+
+  it('object: shape is {} when def.shape is absent', () => {
+    vi.spyOn(
+      (z4 as unknown as { globalRegistry: { get: (...args: unknown[]) => unknown } }).globalRegistry,
+      'get'
+    ).mockReturnValue(undefined);
+
+    const fake = { _zod: { def: { type: 'object' } } };
+    const node = walkZodDef(fake as unknown as z4.$ZodType);
+    expect(node.type).toBe('object');
+    expect(node.shape).toEqual({});
+  });
+
+  it('union: options is [] when def.options is absent', () => {
+    vi.spyOn(
+      (z4 as unknown as { globalRegistry: { get: (...args: unknown[]) => unknown } }).globalRegistry,
+      'get'
+    ).mockReturnValue(undefined);
+
+    const fake = { _zod: { def: { type: 'union' } } };
+    const node = walkZodDef(fake as unknown as z4.$ZodType);
+    expect(node.type).toBe('union');
+    expect(node.options).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatSchemaDescription — missing inner/items/options fallback branches
+// ---------------------------------------------------------------------------
+
+describe('formatSchemaDescription — missing inner/items/options fallbacks', () => {
+  it('array with no items field renders "array of unknown"', () => {
+    expect(formatSchemaDescription({ type: 'array' })).toBe('array of unknown');
+  });
+
+  it('optional with no inner field renders "optional unknown"', () => {
+    expect(formatSchemaDescription({ type: 'optional' })).toBe('optional unknown');
+  });
+
+  it('nullable with no inner field renders "nullable unknown"', () => {
+    expect(formatSchemaDescription({ type: 'nullable' })).toBe('nullable unknown');
+  });
+
+  it('union with no options field renders empty string', () => {
+    expect(formatSchemaDescription({ type: 'union' })).toBe('');
+  });
+
+  it('object with no shape field renders just "object" (shape undefined → if(node.shape) is false)', () => {
+    expect(formatSchemaDescription({ type: 'object' })).toBe('object');
+  });
+
+  it('enum with no values property uses ?? [] fallback — renders "enum" for no values', () => {
+    // node.values is absent (undefined) → hits the ?? [] right side
+    expect(formatSchemaDescription({ type: 'enum' })).toBe('enum');
   });
 });

@@ -50,8 +50,8 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 interface StubMatcherState {
-  testPath: string;
-  snapshotState: {
+  testPath?: string;
+  snapshotState?: {
     snapshotUpdateState: 'all' | 'new' | 'none';
   };
 }
@@ -891,5 +891,217 @@ describe('toMatchTidemarkSnapshot — TidemarkSnapshotError catch block', () => 
         [{ name: 'case-1', input: {} }]
       )
     ).rejects.toThrow('network failure');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Matcher state edge cases — testPath/snapshotState undefined fallbacks
+// ---------------------------------------------------------------------------
+
+describe('toMatchTidemarkSnapshot — matcher state undefined fallbacks', () => {
+  it('testPath undefined falls back to empty string — first run still writes snapshot', async () => {
+    adapter.enqueue({ text: '{"score":1}', modelVersion: 'v1' });
+
+    const fn = createPromptFn({
+      name: 'no-testpath-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const result = await callMatcher(
+      { testPath: undefined, snapshotState: { snapshotUpdateState: 'new' } },
+      fn,
+      [{ name: 'case-1', input: {} }]
+    );
+
+    expect(result.pass).toBe(true);
+    const fsp = await import('node:fs/promises');
+    expect(fsp.writeFile).toHaveBeenCalled();
+  });
+
+  it('snapshotState undefined falls back to "new" — first run proceeds normally', async () => {
+    adapter.enqueue({ text: '{"score":1}', modelVersion: 'v1' });
+
+    const fn = createPromptFn({
+      name: 'no-snapshot-state-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const result = await callMatcher(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      { testPath: '/abs/test.test.ts', snapshotState: undefined } as any,
+      fn,
+      [{ name: 'case-1', input: {} }]
+    );
+
+    expect(result.pass).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// storedEntry ?? {} fallback — case name absent from existing snapshot
+// ---------------------------------------------------------------------------
+
+describe('toMatchTidemarkSnapshot — storedEntry undefined (case absent from snapshot)', () => {
+  it('evaluates against empty baseline when case name not in stored snapshot', async () => {
+    const fs = await import('node:fs');
+    const fsp = await import('node:fs/promises');
+    const { computeHashTriplet } = await import('../../snapshot/engine.js');
+
+    const fn = createPromptFn({
+      name: 'missing-case-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const modelVersion = 'v1';
+    const freshMeta = computeHashTriplet(fn[TIDEMARK_META] as Parameters<typeof computeHashTriplet>[0], modelVersion);
+    // Snapshot exists but has no entry for 'new-case'
+    const existingSnapshot = { $meta: freshMeta };
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(fsp.readFile) as any).mockResolvedValue(JSON.stringify(existingSnapshot));
+
+    adapter.enqueue({ text: '{"score":42}', modelVersion });
+
+    const result = await callMatcher(
+      { testPath: '/abs/test.test.ts', snapshotState: { snapshotUpdateState: 'new' } },
+      fn,
+      [{ name: 'new-case', input: {} }]
+    );
+
+    // storedEntry is undefined → (storedEntry ?? {}) used as baseline
+    // exact match: undefined (from {}) vs 42 → fail
+    expect(result.pass).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// message() lambdas on passing results — function coverage for () => '' branches
+// ---------------------------------------------------------------------------
+
+describe('toMatchTidemarkSnapshot — message() on passing results', () => {
+  it('CI mode pass: message() returns empty string', async () => {
+    const fs = await import('node:fs');
+    const fsp = await import('node:fs/promises');
+
+    const existingSnapshot = {
+      $meta: { promptHash: 'h', schemaHash: 'h', modelHash: 'h', tidemarkVersion: '0.1.0', createdAt: '2026-01-01T00:00:00.000Z' },
+      'case-1': { score: 1 },
+    };
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(fsp.readFile) as any).mockResolvedValue(JSON.stringify(existingSnapshot));
+
+    const fn = createPromptFn({
+      name: 'ci-msg-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const result = await callMatcher(
+      { testPath: '/abs/test.test.ts', snapshotState: { snapshotUpdateState: 'none' } },
+      fn,
+      [{ name: 'case-1', input: {} }]
+    );
+
+    expect(result.pass).toBe(true);
+    expect(result.message()).toBe('');
+  });
+
+  it('first-run pass: message() returns empty string', async () => {
+    adapter.enqueue({ text: '{"score":1}', modelVersion: 'v1' });
+
+    const fn = createPromptFn({
+      name: 'first-run-msg-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const result = await callMatcher(
+      { testPath: '/abs/test.test.ts', snapshotState: { snapshotUpdateState: 'new' } },
+      fn,
+      [{ name: 'case-1', input: {} }]
+    );
+
+    expect(result.pass).toBe(true);
+    expect(result.message()).toBe('');
+  });
+
+  it('sampling skip pass: message() returns empty string', async () => {
+    const fs = await import('node:fs');
+    const fsp = await import('node:fs/promises');
+    const { computeHashTriplet } = await import('../../snapshot/engine.js');
+
+    const fn = createPromptFn({
+      name: 'sampling-msg-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const freshMeta = computeHashTriplet(fn[TIDEMARK_META] as Parameters<typeof computeHashTriplet>[0], 'v1');
+    const existingSnapshot = { $meta: freshMeta, 'case-1': { score: 1 } };
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(fsp.readFile) as any).mockResolvedValue(JSON.stringify(existingSnapshot));
+
+    const result = await callMatcher(
+      { testPath: '/abs/test.test.ts', snapshotState: { snapshotUpdateState: 'new' } },
+      fn,
+      [{ name: 'case-1', input: {} }],
+      { sample: 0.0 }
+    );
+
+    expect(result.pass).toBe(true);
+    expect(result.message()).toBe('');
+  });
+
+  it('allPass subsequent run: message() returns empty string', async () => {
+    const fs = await import('node:fs');
+    const fsp = await import('node:fs/promises');
+    const { computeHashTriplet } = await import('../../snapshot/engine.js');
+
+    const fn = createPromptFn({
+      name: 'allpass-msg-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const modelVersion = 'v1';
+    const freshMeta = computeHashTriplet(fn[TIDEMARK_META] as Parameters<typeof computeHashTriplet>[0], modelVersion);
+    const existingSnapshot = { $meta: freshMeta, 'case-1': { score: 42 } };
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(fsp.readFile) as any).mockResolvedValue(JSON.stringify(existingSnapshot));
+
+    adapter.enqueue({ text: '{"score":42}', modelVersion });
+
+    const result = await callMatcher(
+      { testPath: '/abs/test.test.ts', snapshotState: { snapshotUpdateState: 'new' } },
+      fn,
+      [{ name: 'case-1', input: {} }]
+    );
+
+    expect(result.pass).toBe(true);
+    expect(result.message()).toBe('');
   });
 });

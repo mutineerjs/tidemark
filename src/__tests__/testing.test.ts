@@ -92,6 +92,13 @@ describe('MockAdapter', () => {
       .rejects.toThrow('MockAdapter: no more queued responses');
   });
 
+  it('generate() uses default text when queued response has no text field', async () => {
+    const adapter = new MockAdapter();
+    adapter.enqueue({ modelVersion: 'v1' }); // no text
+    const resp = await adapter.generate({ messages: [], system: '' });
+    expect(resp.text).toBe('{"result": "mock"}');
+  });
+
   it('stream() with empty queue uses default text fallback', () => {
     const adapter = new MockAdapter();
     const source = adapter.stream({ messages: [], system: '' });
@@ -105,5 +112,13 @@ describe('MockAdapter', () => {
     const resp = await source.finalResponse();
     expect(resp.modelVersion).toBe('mock-model-v1');
     expect(resp.text).toBe('{"result": "mock"}');
+  });
+});
+
+describe('mockPromptFn stream stub — abort()', () => {
+  it('abort() can be called without throwing', () => {
+    const fn = mockPromptFn({ category: 'news' });
+    const s = fn.stream({});
+    expect(() => s.abort()).not.toThrow();
   });
 });
