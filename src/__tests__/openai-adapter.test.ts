@@ -295,3 +295,34 @@ describe('Security: T-03-01 — apiKey not in rawRequest', () => {
     expect(rawReq).not.toHaveProperty('api_key');
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// buildParams — nullishToOr boundary: maxTokens: 0 must not fall through to default
+// ────────────────────────────────────────────────────────────────────────────
+describe('OpenAIAdapter.generate() — maxTokens: 0 nullish boundary', () => {
+  it('passes maxTokens: 0 as max_tokens (nullish coalescing, not falsy fallback)', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_CHAT_COMPLETION);
+    await adapter.generate({ messages: [{ role: 'user', content: 'test' }], maxTokens: 0 });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.max_tokens).toBe(0);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// buildParams — flipStrictNEQ boundary: temperature: 0 must not be omitted
+// ────────────────────────────────────────────────────────────────────────────
+describe('OpenAIAdapter.generate() — temperature: 0 boundary', () => {
+  it('includes temperature: 0 in params when explicitly set (not undefined)', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_CHAT_COMPLETION);
+    await adapter.generate({ messages: [{ role: 'user', content: 'test' }], temperature: 0 });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params).toHaveProperty('temperature', 0);
+  });
+
+  it('omits temperature from params when not provided', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_CHAT_COMPLETION);
+    await adapter.generate({ messages: [{ role: 'user', content: 'test' }] });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params).not.toHaveProperty('temperature');
+  });
+});
