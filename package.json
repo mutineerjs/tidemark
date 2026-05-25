@@ -30,7 +30,8 @@
     "dist",
     "README.md",
     "BENCHMARK.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "SECURITY.md"
   ],
   "sideEffects": false,
   "engines": {

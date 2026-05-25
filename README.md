@@ -1,5 +1,9 @@
 # Tidemark
 
+[![npm](https://img.shields.io/npm/v/@mutineerjs/tidemark)](https://www.npmjs.com/package/@mutineerjs/tidemark)
+[![CI](https://github.com/mutineerjs/tidemark/actions/workflows/ci.yml/badge.svg)](https://github.com/mutineerjs/tidemark/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Snapshot testing for LLM features. Detect prompt, model, and schema drift before production does.
 
 Define your prompts as typed `promptFn` functions with Zod-validated output, capture behaviour across
