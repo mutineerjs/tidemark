@@ -6,3 +6,5 @@ examples/__snapshots__/
 tmp/
 .env
 coverage/
+.planning/
+.vscode/
