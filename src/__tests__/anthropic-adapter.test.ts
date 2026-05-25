@@ -315,3 +315,154 @@ describe('Security: T-03-01 — apiKey not in rawRequest', () => {
     expect(rawReq).not.toHaveProperty('api_key');
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// buildParams — nullishToOr boundary: maxTokens: 0 must not fall through to default
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicAdapter.generate() — maxTokens: 0 nullish boundary', () => {
+  it('passes maxTokens: 0 as max_tokens (nullish coalescing, not falsy fallback)', async () => {
+    const { adapter, mockCreate } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    await adapter.generate({ messages: [{ role: 'user', content: 'test' }], maxTokens: 0 });
+    const params = mockCreate.mock.calls[0][0];
+    expect(params.max_tokens).toBe(0);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// AnthropicAdapter.stream() — params inspection
+// Covers escaped mutations in the stream() inline params block (lines 154-157)
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicAdapter.stream() — params passed to messages.stream()', () => {
+  it('passes maxTokens: 0 as max_tokens (nullish coalescing, not falsy fallback)', () => {
+    const { adapter, mockStream } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    adapter.stream({ messages: [{ role: 'user', content: 'test' }], maxTokens: 0 });
+    const params = mockStream.mock.calls[0][0];
+    expect(params.max_tokens).toBe(0);
+  });
+
+  it('includes system in params when system string is provided', () => {
+    const { adapter, mockStream } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    adapter.stream({ messages: [{ role: 'user', content: 'test' }], system: 'Be concise.' });
+    const params = mockStream.mock.calls[0][0];
+    expect(params).toHaveProperty('system', 'Be concise.');
+  });
+
+  it('includes temperature in params when temperature is provided', () => {
+    const { adapter, mockStream } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    adapter.stream({ messages: [{ role: 'user', content: 'test' }], temperature: 0.7 });
+    const params = mockStream.mock.calls[0][0];
+    expect(params).toHaveProperty('temperature', 0.7);
+  });
+
+  it('omits system from params when system is not provided', () => {
+    const { adapter, mockStream } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    adapter.stream({ messages: [{ role: 'user', content: 'test' }] });
+    const params = mockStream.mock.calls[0][0];
+    expect(params).not.toHaveProperty('system');
+  });
+
+  it('omits temperature from params when temperature is not provided', () => {
+    const { adapter, mockStream } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    adapter.stream({ messages: [{ role: 'user', content: 'test' }] });
+    const params = mockStream.mock.calls[0][0];
+    expect(params).not.toHaveProperty('temperature');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// AnthropicStreamSource — iterator event filtering
+// Tests that only content_block_delta / text_delta events yield text chunks.
+// Covers flipStrictEQ and andToOr mutations on lines 43-44.
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicStreamSource iterator — event type filtering', () => {
+  it('yields only text_delta chunks from content_block_delta events; ignores all other event types', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    const mockSDKStream = {
+      finalMessage: vi.fn().mockResolvedValue(MOCK_TEXT_MESSAGE),
+      abort: vi.fn(),
+      [Symbol.asyncIterator]: async function* () {
+        yield { type: 'message_start', message: {} };
+        // content_block_delta with wrong delta type — should not yield
+        yield { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"x"' } };
+        // correct event — should yield
+        yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hello' } };
+        yield { type: 'message_stop' };
+      },
+    };
+    (adapter as unknown as { client: unknown }).client = {
+      messages: { create: vi.fn(), stream: vi.fn().mockReturnValue(mockSDKStream) },
+    };
+    const source = adapter.stream({ messages: [{ role: 'user', content: 'test' }] });
+    const chunks: string[] = [];
+    for await (const chunk of source) {
+      chunks.push(chunk.delta);
+    }
+    expect(chunks).toEqual(['hello']);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// AnthropicStreamSource.finalResponse() — content block filtering
+// Tests text/tool_use block separation and the toolUseBlocks.length > 0 guard.
+// Covers flipStrictEQ mutations on lines 56 and 59, and tightenGT on line 70.
+// ────────────────────────────────────────────────────────────────────────────
+describe('AnthropicStreamSource.finalResponse() — content block filtering', () => {
+  function makeStreamSource(contentBlocks: unknown[], stopReason = 'end_turn') {
+    const message = {
+      ...MOCK_TEXT_MESSAGE,
+      content: contentBlocks,
+      stop_reason: stopReason,
+    };
+    return {
+      finalMessage: vi.fn().mockResolvedValue(message),
+      abort: vi.fn(),
+      [Symbol.asyncIterator]: async function* () {},
+    };
+  }
+
+  it('joins only text blocks into the text field — non-text blocks are excluded', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    (adapter as unknown as { client: unknown }).client = {
+      messages: {
+        create: vi.fn(),
+        stream: vi.fn().mockReturnValue(makeStreamSource([
+          { type: 'tool_use', id: 'tu1', name: 'fn', input: {} },
+          { type: 'text', text: 'result text' },
+        ])),
+      },
+    };
+    const response = await adapter.stream({ messages: [{ role: 'user', content: 'test' }] }).finalResponse();
+    expect(response.text).toBe('result text');
+  });
+
+  it('maps only tool_use blocks to toolCalls — text blocks are excluded from toolCalls', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    (adapter as unknown as { client: unknown }).client = {
+      messages: {
+        create: vi.fn(),
+        stream: vi.fn().mockReturnValue(makeStreamSource([
+          { type: 'text', text: 'thinking...' },
+          { type: 'tool_use', id: 'tu1', name: 'get_weather', input: { city: 'NYC' } },
+        ], 'tool_use')),
+      },
+    };
+    const response = await adapter.stream({ messages: [{ role: 'user', content: 'test' }] }).finalResponse();
+    expect(response.toolCalls).toBeDefined();
+    expect(response.toolCalls).toHaveLength(1);
+    expect(response.toolCalls![0]).toEqual({ id: 'tu1', name: 'get_weather', input: { city: 'NYC' } });
+  });
+
+  it('returns undefined toolCalls (not empty array) when no tool_use blocks are present', async () => {
+    const { adapter } = createMockedAdapter(MOCK_TEXT_MESSAGE);
+    (adapter as unknown as { client: unknown }).client = {
+      messages: {
+        create: vi.fn(),
+        stream: vi.fn().mockReturnValue(makeStreamSource([
+          { type: 'text', text: 'hello' },
+        ])),
+      },
+    };
+    const response = await adapter.stream({ messages: [{ role: 'user', content: 'test' }] }).finalResponse();
+    expect(response.toolCalls).toBeUndefined();
+  });
+});

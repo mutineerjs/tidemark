@@ -9,3 +9,6 @@ coverage/
 .planning/
 .vscode/
 CLAUDE.md
+.mutineer-cache.json
+mutineer-report.json
+**/__mutineer__/

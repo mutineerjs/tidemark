@@ -70,9 +70,11 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
+    "@mutineerjs/mutineer": "^0.12.6",
     "@standard-schema/spec": "^1.1.0",
     "@types/node": "^25.9.1",
     "@vitest/coverage-v8": "^4.1.7",
+    "jiti": "^2.7.0",
     "openai": "^6.39.0",
     "tsup": "^8.5.1",
     "tsx": "^4.22.3",
@@ -87,6 +89,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:mutate": "mutineer run --full",
     "typecheck": "tsc --noEmit"
   },
   "publishConfig": {
