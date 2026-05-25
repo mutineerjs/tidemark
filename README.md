@@ -75,18 +75,37 @@ export default defineConfig({
 ```
 
 If you have a mixed suite (fast unit tests alongside AI snapshot tests), keep a separate config for
-the snapshot tests so the slow timeout doesn't apply to everything:
+the snapshot tests and explicitly exclude that directory from the main config:
 
+```typescript
+// vitest.config.ts — unit tests only
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['src/**/*.test.ts'],
+    exclude: ['src/snapshots/**', 'node_modules/**'],
+  },
+});
 ```
-vitest.config.ts          ← unit tests, default timeout
-vitest.snapshot.config.ts ← snapshot tests, testTimeout: 30_000
+
+```typescript
+// vitest.snapshot.config.ts — AI snapshot tests
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['src/snapshots/**/*.test.ts'],
+    testTimeout: 30_000,
+  },
+});
 ```
 
 Run them independently:
 
 ```bash
-vitest run                             # unit tests
-vitest run --config vitest.snapshot.config.ts  # snapshot tests
+vitest run                                       # unit tests
+vitest run --config vitest.snapshot.config.ts   # snapshot tests
 ```
 
 ## How It Works
