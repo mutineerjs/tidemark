@@ -795,3 +795,101 @@ describe('toMatchTidemarkSnapshot — sampling gate (step 7)', () => {
     expect(result.pass).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// PromptFnWrapper.toMatchSnapshot() method (line 74 of vitest/index.ts)
+// ---------------------------------------------------------------------------
+
+describe('PromptFnWrapper.toMatchSnapshot() delegation', () => {
+  it('delegates to toMatchTidemarkSnapshot and passes on first run', async () => {
+    adapter.enqueue({ text: '{"score":1}', modelVersion: 'v1' });
+
+    const fn = createPromptFn({
+      name: 'wrapper-method-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const wrapper = expectPromptFn(fn as Parameters<typeof expectPromptFn>[0]);
+    // Calls wrapper.toMatchSnapshot which internally calls expect(this).toMatchTidemarkSnapshot
+    await wrapper.toMatchSnapshot([{ name: 'case-1', input: {} }]);
+    // If no error thrown, test passes
+  });
+});
+
+// ---------------------------------------------------------------------------
+// TidemarkSnapshotError catch block (lines 271-277 of vitest/index.ts)
+// Triggered when runCases throws TidemarkSnapshotError during subsequent run (step 7)
+// ---------------------------------------------------------------------------
+
+describe('toMatchTidemarkSnapshot — TidemarkSnapshotError catch block', () => {
+  it('returns pass=false with error message when TidemarkSnapshotError thrown in subsequent run', async () => {
+    const fs = await import('node:fs');
+    const fsp = await import('node:fs/promises');
+
+    const { computeHashTriplet } = await import('../../snapshot/engine.js');
+
+    const fn = createPromptFn({
+      name: 'catch-block-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const modelVersion = 'v1';
+    const freshMeta = computeHashTriplet(fn[TIDEMARK_META] as Parameters<typeof computeHashTriplet>[0], modelVersion);
+    const existingSnapshot = { $meta: freshMeta, 'case-1': { score: 1 } };
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(fsp.readFile) as any).mockResolvedValue(JSON.stringify(existingSnapshot));
+
+    // Duplicate case names in subsequent run → TidemarkSnapshotError caught in step 7 try block
+    const result = await callMatcher(
+      { testPath: '/abs/test.test.ts', snapshotState: { snapshotUpdateState: 'new' } },
+      fn,
+      [{ name: 'dup', input: {} }, { name: 'dup', input: {} }]
+    );
+
+    expect(result.pass).toBe(false);
+    expect(result.message()).toMatch(/duplicate/i);
+  });
+
+  it('re-throws non-TidemarkSnapshotError errors from subsequent run (line 277)', async () => {
+    const fs = await import('node:fs');
+    const fsp = await import('node:fs/promises');
+
+    const { computeHashTriplet } = await import('../../snapshot/engine.js');
+
+    const fn = createPromptFn({
+      name: 'rethrow-test',
+      prompt: () => 'test',
+      inputSchema: z.object({}) as unknown as z4.$ZodType,
+      outputSchema: z.object({ score: z.number() }) as unknown as z4.$ZodType,
+      adapter,
+    });
+
+    const modelVersion = 'v1';
+    const freshMeta = computeHashTriplet(fn[TIDEMARK_META] as Parameters<typeof computeHashTriplet>[0], modelVersion);
+    const existingSnapshot = { $meta: freshMeta, 'case-1': { score: 1 } };
+
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (vi.mocked(fsp.readFile) as any).mockResolvedValue(JSON.stringify(existingSnapshot));
+
+    // Make the adapter throw a plain Error (not TidemarkSnapshotError) during case execution
+    adapter.reset();
+    vi.spyOn(adapter, 'generate').mockRejectedValue(new TypeError('network failure'));
+
+    await expect(
+      callMatcher(
+        { testPath: '/abs/test.test.ts', snapshotState: { snapshotUpdateState: 'new' } },
+        fn,
+        [{ name: 'case-1', input: {} }]
+      )
+    ).rejects.toThrow('network failure');
+  });
+});

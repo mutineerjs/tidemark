@@ -351,4 +351,54 @@ describe('evaluateFields', () => {
     expect(countResult?.expected).toBe(5);
     expect(countResult?.received).toBe(10);
   });
+
+  it('evaluateStringArray: empty array passes trivially (score 1.0, no judge calls)', async () => {
+    const schema = z.object({
+      tags: z.array(z.string()),
+    }) as unknown as z4.$ZodType;
+
+    const baselineEntry = { tags: [] };
+    const newOutput = { tags: [] };
+
+    const results = await evaluateFields(adapter, schema, baselineEntry, newOutput, 0.85);
+
+    expect(adapter.calls).toHaveLength(0);
+    const tagsResult = results.find((r) => r.fieldPath === 'tags');
+    expect(tagsResult?.status).toBe('pass');
+    expect(tagsResult?.score).toBe(1.0);
+  });
+
+  it('evaluateFields handles non-object top-level string schema as a single judged field', async () => {
+    adapter.enqueue({ text: '"score": 0.9, "reasoning": "match"}', modelVersion: 'v1' });
+
+    const schema = z.string() as unknown as z4.$ZodType;
+
+    const results = await evaluateFields(
+      adapter,
+      schema,
+      'baseline' as unknown as Record<string, unknown>,
+      'new value' as unknown as Record<string, unknown>,
+      0.85
+    );
+
+    expect(results[0].fieldPath).toBe('value');
+    expect(results[0].mode).toBe('judged');
+  });
+
+  it('evaluateFields handles non-object top-level number schema as a single exact field', async () => {
+    const schema = z.number() as unknown as z4.$ZodType;
+
+    const results = await evaluateFields(
+      adapter,
+      schema,
+      42 as unknown as Record<string, unknown>,
+      42 as unknown as Record<string, unknown>,
+      0.85
+    );
+
+    expect(adapter.calls).toHaveLength(0);
+    expect(results[0].fieldPath).toBe('value');
+    expect(results[0].mode).toBe('exact');
+    expect(results[0].status).toBe('pass');
+  });
 });
