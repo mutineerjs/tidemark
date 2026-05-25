@@ -70,3 +70,23 @@ All code additions require unit tests. The full test suite must pass without rea
 ## Releases
 
 Releases are automated via [release-please](https://github.com/googleapis/release-please). Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/). A `fix:` commit bumps the patch version; a `feat:` bumps minor; a `feat!:` or `BREAKING CHANGE:` bumps major.
+
+## Design decisions
+
+### Alternatives considered
+
+| Category | Chosen | Alternative | Why not |
+|----------|--------|-------------|---------|
+| Build tool | tsup 8.x | tsdown | Pre-1.0, known bugs. Revisit when it reaches 1.0. |
+| Build tool | tsup 8.x | tsc alone | No bundling, no tree-shaking, flat file-per-file output. |
+| LLM abstraction | Native SDKs + custom adapter | Vercel AI SDK | Hides `modelVersion` from the response (needed for drift hashing); hides `rawRequest`/`rawResponse`; large surface area. |
+| Schema | Zod v4 | Valibot | Tidemark is Zod-native by design. Standard Schema (`@standard-schema/spec`) is the future compat path. |
+| Snapshot format | Custom JSON | Vitest `.snap` format | Vitest's format isn't human-readable JSON. Tidemark needs `promptHash`, `schemaHash`, and field-level metadata in the file. |
+| String diffing | `diff` package | `deep-diff` | Actively maintained (v9), simpler API. |
+
+### Version pinning rationale
+
+- **Zod v4, not v3** — v4 is stable (4.4.3+), implements `@standard-schema/spec` natively, and is 14x faster. Internal library code imports from `zod/v4/core` to support both Zod and Zod Mini. Peer dep accepts `^3.25.0 || ^4.0.0` for user flexibility.
+- **OpenAI SDK v6** — v6 is current stable; the `dist-tags.next` entry of `v4.0.0-beta` is a legacy artifact, ignore it.
+- **Anthropic SDK 0.x** — Pre-1.0 versioned but actively maintained. Use the latest `^0.x` release.
+- **Vitest v4, not v5** — v5 is in beta. Adopt v4.1.x; migrate when v5 is stable.
