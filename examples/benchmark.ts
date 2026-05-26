@@ -2,7 +2,7 @@
 // Run: npx tsx examples/benchmark.ts
 // Note: Uses MockAdapter (no API key required) — pure drift detection simulation.
 
-import { MockAdapter, TIDELINE_META } from '../src/index.js';
+import { MockAdapter, TIDEMARK_META } from '../src/index.js';
 import { createPromptFn } from '../src/index.js';
 import {
   runCases,
@@ -48,7 +48,7 @@ async function scenario1(): Promise<void> {
   // Write baseline — enqueue a deterministic response for the case run
   adapter.enqueue({ text: '{"category":"billing"}', modelVersion: 'mock-model-v1' });
 
-  const metaV1 = promptFnV1[TIDELINE_META];
+  const metaV1 = promptFnV1[TIDEMARK_META];
   const { outputs: baselineOutputs, modelVersion: baselineModel } = await runCases(
     promptFnV1,
     [{ name: 'test-1', input: {} }]
@@ -69,7 +69,7 @@ async function scenario1(): Promise<void> {
 
   adapter.enqueue({ text: '{"category":"billing"}', modelVersion: 'mock-model-v1' });
 
-  const metaV2 = promptFnV2[TIDELINE_META];
+  const metaV2 = promptFnV2[TIDEMARK_META];
   const { modelVersion: freshModel2 } = await runCases(
     promptFnV2,
     [{ name: 'test-1', input: {} }]
@@ -112,7 +112,7 @@ async function scenario2(): Promise<void> {
 
   adapter.enqueue({ text: '{"category":"billing"}', modelVersion: 'mock-model-v1' });
 
-  const metaS1 = schemaFnV1[TIDELINE_META];
+  const metaS1 = schemaFnV1[TIDEMARK_META];
   const { outputs: baselineOutputs2, modelVersion: baselineModel2 } = await runCases(
     schemaFnV1,
     [{ name: 'test-1', input: {} }]
@@ -141,7 +141,7 @@ async function scenario2(): Promise<void> {
     modelVersion: 'mock-model-v1',
   });
 
-  const metaS2 = schemaFnV2[TIDELINE_META];
+  const metaS2 = schemaFnV2[TIDEMARK_META];
   const { modelVersion: freshModel3 } = await runCases(
     schemaFnV2,
     [{ name: 'test-1', input: {} }]
@@ -186,7 +186,7 @@ async function scenario3(): Promise<void> {
     modelVersion: 'claude-sonnet-4-5-20250929',
   });
 
-  const metaM = modelFnBase[TIDELINE_META];
+  const metaM = modelFnBase[TIDEMARK_META];
   const { outputs: baselineOutputs3, modelVersion: baselineModel3 } = await runCases(
     modelFnBase,
     [{ name: 'test-1', input: {} }]
