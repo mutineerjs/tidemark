@@ -34,12 +34,12 @@ export const extractFn = createPromptFn({
   adapter,
 });
 
-console.log(extractFn.inspect({
+if (process.argv[1] === new URL(import.meta.url).pathname) {
+  console.log(extractFn.inspect({
     url: 'https://example.com/article',
     text: 'Researchers at Stanford announced a breakthrough in quantum computing today. The new approach uses topological qubits to achieve error rates below 0.1%. Lead researcher Dr. Jane Smith called it a milestone for the field.',
-  }))
-
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+  }));
+  console.log();
   const result = await extractFn({
     url: 'https://example.com/article',
     text: 'Researchers at Stanford announced a breakthrough in quantum computing today. The new approach uses topological qubits to achieve error rates below 0.1%. Lead researcher Dr. Jane Smith called it a milestone for the field.',
