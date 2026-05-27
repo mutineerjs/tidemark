@@ -12,7 +12,6 @@ import * as z from 'zod';
 
 import { createPromptFn } from '../../core/factory.js';
 import { MockAdapter } from '../../adapters/mock.js';
-import type { ConversationCase } from '../../types.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — declared at module level before imports (Jest hoisting)
@@ -24,7 +23,7 @@ jest.mock('node:fs');
 // Import Jest adapter under test
 // Static import with jest.resetModules() in beforeEach if needed
 // ---------------------------------------------------------------------------
-import { expectPromptFn, expectConversation, tidemarkMatchers } from '../index.js';
+import { expectPromptFn, tidemarkMatchers } from '../index.js';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -69,80 +68,6 @@ async function callMatcher(
   const matcherFn = tidemarkMatchers.toMatchTidemarkSnapshot;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return matcherFn.call(state as any, received, cases, opts);
-}
-
-async function callConversationMatcher(
-  state: StubMatcherState,
-  received: unknown,
-  cases: ConversationCase[]
-) {
-  const matcherFn = tidemarkMatchers.toMatchConversationSnapshot;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return matcherFn.call(state as any, received, cases);
-}
-
-// ---------------------------------------------------------------------------
-// Conversation fixtures (same as Vitest analog)
-// ---------------------------------------------------------------------------
-
-function makeFns() {
-  const extractFn = createPromptFn({
-    name: 'extract-feedback-themes',
-    prompt: (input: string) => `Extract themes from: ${input}`,
-    inputSchema: z.string(),
-    outputSchema: z.object({
-      themes: z.array(z.string()),
-      sentiment: z.string(),
-    }),
-    adapter,
-  });
-
-  const prioritizeFn = createPromptFn({
-    name: 'prioritize-feedback-themes',
-    prompt: (input: string) => `Prioritize: ${input}`,
-    inputSchema: z.string(),
-    outputSchema: z.object({
-      ranked: z.array(
-        z.object({
-          theme: z.string(),
-          priority: z.string(),
-        })
-      ),
-    }),
-    adapter,
-  });
-
-  return { extractFn, prioritizeFn };
-}
-
-function makeStandardCases(
-  extractFn: ReturnType<typeof createPromptFn>,
-  prioritizeFn: ReturnType<typeof createPromptFn>
-): ConversationCase[] {
-  return [
-    {
-      name: 'negative-feedback',
-      steps: [
-        { fn: extractFn, input: 'bad review' },
-        { fn: prioritizeFn, input: 'prioritize these' },
-      ],
-    },
-    {
-      name: 'positive-feedback',
-      steps: [
-        { fn: extractFn, input: 'good review' },
-        { fn: prioritizeFn, input: 'prioritize these' },
-      ],
-    },
-  ];
-}
-
-function enqueue4Responses() {
-  adapter
-    .enqueue({ text: '{"themes":["slow service","rude staff"],"sentiment":"negative"}', modelVersion: 'test-model-v1' })
-    .enqueue({ text: '{"ranked":[{"theme":"slow service","priority":"high"}]}', modelVersion: 'test-model-v1' })
-    .enqueue({ text: '{"themes":["friendly staff","fast service"],"sentiment":"positive"}', modelVersion: 'test-model-v1' })
-    .enqueue({ text: '{"ranked":[{"theme":"friendly staff","priority":"high"}]}', modelVersion: 'test-model-v1' });
 }
 
 // ---------------------------------------------------------------------------
@@ -337,77 +262,3 @@ describe('toMatchTidemarkSnapshot — CI mode (_updateSnapshot: "none")', () => 
 });
 
 // ---------------------------------------------------------------------------
-// expectConversation first run (_updateSnapshot: 'new')
-// ---------------------------------------------------------------------------
-
-describe('toMatchConversationSnapshot — first run (_updateSnapshot: "new")', () => {
-  it('pass: true, writeFile called once, $meta.turns length 2, fn-name keys (Format C)', async () => {
-    const { extractFn, prioritizeFn } = makeFns();
-    const cases = makeStandardCases(extractFn, prioritizeFn);
-    enqueue4Responses();
-
-    const newState: StubMatcherState = {
-      testPath: '/project/src/__tests__/my.test.ts',
-      snapshotState: { _updateSnapshot: 'new' },
-    };
-
-    const result = await callConversationMatcher(newState, expectConversation('my-conv'), cases);
-
-    expect(result.pass).toBe(true);
-
-    const fsp = await import('node:fs/promises');
-    expect(jest.mocked(fsp.writeFile)).toHaveBeenCalledTimes(1);
-
-    const writeCall = jest.mocked(fsp.writeFile).mock.calls[0];
-    const writtenContent = writeCall[1] as string;
-    const parsed = JSON.parse(writtenContent);
-
-    expect(parsed.$meta.turns).toHaveLength(2);
-    expect(parsed['negative-feedback']).toBeDefined();
-
-    const caseKeys = Object.keys(parsed['negative-feedback']);
-    expect(caseKeys).toContain('extract-feedback-themes');
-    expect(caseKeys).toContain('prioritize-feedback-themes');
-    expect(caseKeys).not.toContain('turn-1');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// expectConversation second run — hash match, read-only
-// ---------------------------------------------------------------------------
-
-describe('toMatchConversationSnapshot — second run (hash-match, read-only)', () => {
-  it('pass: true, writeFile NOT called', async () => {
-    const { extractFn, prioritizeFn } = makeFns();
-    const cases = makeStandardCases(extractFn, prioritizeFn);
-
-    const newState: StubMatcherState = {
-      testPath: '/project/src/__tests__/my.test.ts',
-      snapshotState: { _updateSnapshot: 'new' },
-    };
-
-    // First run: capture written snapshot content
-    enqueue4Responses();
-    await callConversationMatcher(newState, expectConversation('second-run-pass'), cases);
-
-    const fsp = await import('node:fs/promises');
-    const writeCall = jest.mocked(fsp.writeFile).mock.calls[0];
-    const writtenContent = writeCall[1] as string;
-
-    // Simulate second run: return same snapshot from readFile
-    jest.clearAllMocks();
-    jest.mocked(fsp.mkdir).mockResolvedValue(undefined);
-    jest.mocked(fsp.writeFile).mockResolvedValue(undefined);
-    const fs = await import('node:fs');
-    jest.mocked(fs.existsSync).mockReturnValue(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (jest.mocked(fsp.readFile) as any).mockResolvedValue(writtenContent);
-
-    enqueue4Responses();
-
-    const result = await callConversationMatcher(newState, expectConversation('second-run-pass'), cases);
-
-    expect(result.pass).toBe(true);
-    expect(jest.mocked(fsp.writeFile)).not.toHaveBeenCalled();
-  });
-});

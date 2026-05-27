@@ -22,18 +22,11 @@ import {
   buildBaselineSnapshot,
   readSnapshot,
   writeSnapshot,
-  isValidCaseName,
 } from '../snapshot/engine.js';
 import { TidemarkSnapshotError } from '../snapshot/drift.js';
-import type { DriftReport, CaseEntry, SnapshotFile } from '../snapshot/drift.js';
+import type { DriftReport, CaseEntry } from '../snapshot/drift.js';
 import { formatDriftMessage } from '../snapshot/drift.js';
 import { evaluateFields } from '../snapshot/judge.js';
-import type { ConversationCase, ConversationSnapshotFile } from '../types.js';
-import {
-  runConversationCases,
-  computeConversationHashes,
-  buildConversationSnapshot,
-} from '../snapshot/conversation-engine.js';
 
 // ---------------------------------------------------------------------------
 // TypeScript module augmentation — extends Jest's Matchers interface
@@ -48,7 +41,6 @@ declare global {
         cases: Array<{ name: string; input: unknown }>,
         opts?: TidemarkMatcherOpts
       ): Promise<void>;
-      toMatchConversationSnapshot(cases: ConversationCase[]): Promise<void>;
     }
   }
 }
@@ -61,7 +53,6 @@ declare module '@jest/expect' {
       cases: Array<{ name: string; input: unknown }>,
       opts?: TidemarkMatcherOpts
     ): Promise<void>;
-    toMatchConversationSnapshot(cases: ConversationCase[]): Promise<void>;
   }
 }
 
@@ -120,30 +111,6 @@ export function expectPromptFn<I extends z4.$ZodType, O extends z4.$ZodType>(
   fn: PromptFn<I, O>
 ): PromptFnWrapper<I, O> {
   return new PromptFnWrapper(fn);
-}
-
-// ---------------------------------------------------------------------------
-// ConversationWrapper — ergonomic builder for expectConversation()
-// ---------------------------------------------------------------------------
-
-class ConversationWrapper {
-  constructor(readonly conversationName: string) {}
-
-  toMatchSnapshot(cases: ConversationCase[]): Promise<void> {
-    return (
-      expect(this) as unknown as {
-        toMatchConversationSnapshot(cases: ConversationCase[]): Promise<void>;
-      }
-    ).toMatchConversationSnapshot(cases);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// expectConversation — user-facing builder
-// ---------------------------------------------------------------------------
-
-export function expectConversation(name: string): ConversationWrapper {
-  return new ConversationWrapper(name);
 }
 
 // ---------------------------------------------------------------------------
@@ -330,122 +297,6 @@ export const tidemarkMatchers = {
         pass: false,
         message: () => formatDriftMessage(report),
       };
-    } catch (err) {
-      if (err instanceof TidemarkSnapshotError) {
-        return {
-          pass: false,
-          message: () => (err as TidemarkSnapshotError).message,
-        };
-      }
-      throw err;
-    }
-  },
-
-  // ---------------------------------------------------------------------------
-  // toMatchConversationSnapshot — multi-turn conversation snapshot matcher
-  // CRITICAL: method shorthand (NOT arrow function) so `this` is bound by Jest
-  // Pitfall 7 from 01-RESEARCH.md
-  // ---------------------------------------------------------------------------
-  async toMatchConversationSnapshot(
-    this: JestMatcherState,
-    received: unknown,
-    cases: ConversationCase[]
-  ) {
-    // ---------------------------------------------------------------------------
-    // 1. Extract conversationName from ConversationWrapper
-    // ---------------------------------------------------------------------------
-    if (!(received instanceof ConversationWrapper)) {
-      throw new TidemarkSnapshotError(
-        'expectConversation() must be called as the receiver of toMatchConversationSnapshot'
-      );
-    }
-    const conversationName = (received as ConversationWrapper).conversationName;
-
-    // ---------------------------------------------------------------------------
-    // Step 0 (SECURITY — T-02-01): Validate conversationName before getSnapshotPath
-    // ---------------------------------------------------------------------------
-    if (!isValidCaseName(conversationName)) {
-      throw new TidemarkSnapshotError(
-        `Invalid conversation name: "${conversationName}". Conversation names must match /^[A-Za-z0-9_-]+$/ (path-traversal guard).`
-      );
-    }
-
-    // ---------------------------------------------------------------------------
-    // 2. Read Jest state
-    // ---------------------------------------------------------------------------
-    const testFilePath = this.testPath ?? '';
-    // D-01: Read _updateSnapshot (not snapshotUpdateState) from Jest's matcher state
-    const updateState = (this.snapshotState as JestSnapshotState | undefined)?._updateSnapshot ?? 'new';
-
-    // ---------------------------------------------------------------------------
-    // 3. Compute snapshot path
-    // ---------------------------------------------------------------------------
-    const snapshotPath = getSnapshotPath(testFilePath, conversationName);
-
-    // ---------------------------------------------------------------------------
-    // 4. Read existing snapshot
-    // ---------------------------------------------------------------------------
-    const existing = await readSnapshot(snapshotPath);
-    const existingConv = existing as unknown as ConversationSnapshotFile | null;
-
-    // ---------------------------------------------------------------------------
-    // 5. CI mode: fail if no snapshot exists
-    // ---------------------------------------------------------------------------
-    if (existingConv === null && updateState === 'none') {
-      return {
-        pass: false,
-        message: () =>
-          `No snapshot found for "${conversationName}". Run tests without --ci to create the baseline.`,
-      };
-    }
-
-    // ---------------------------------------------------------------------------
-    // 5.5. CI offline mode: snapshot exists, skip all LLM calls
-    // ---------------------------------------------------------------------------
-    if (existingConv !== null && updateState === 'none') {
-      return { pass: true, message: () => '' };
-    }
-
-    // ---------------------------------------------------------------------------
-    // 6. First-run / regenerate path: existingConv === null OR updateState === 'all'
-    // ---------------------------------------------------------------------------
-    if (existingConv === null || updateState === 'all') {
-      const caseResults = await runConversationCases(cases);
-      const hashes = computeConversationHashes(caseResults);
-      const snapFile = buildConversationSnapshot(hashes, caseResults);
-      await writeSnapshot(snapshotPath, snapFile as unknown as SnapshotFile);
-      return { pass: true, message: () => '' };
-    }
-
-    // ---------------------------------------------------------------------------
-    // 7. Subsequent run: combined hash comparison only (Phase 1 scope)
-    // NOTE: Phase 1 does NOT call evaluateFields — subsequent run is hash check only.
-    // NOTE: Subsequent run is READ-ONLY — do NOT call writeSnapshot here (Pitfall 6).
-    // ---------------------------------------------------------------------------
-    try {
-      const caseResults = await runConversationCases(cases);
-      const freshHashes = computeConversationHashes(caseResults);
-
-      const promptChanged = existingConv.$meta.promptHash !== freshHashes.promptHash;
-      const schemaChanged = existingConv.$meta.schemaHash !== freshHashes.schemaHash;
-      const modelChanged = existingConv.$meta.modelHash !== freshHashes.modelHash;
-
-      if (promptChanged || schemaChanged || modelChanged) {
-        const report: DriftReport = {
-          hashChanged: {
-            prompt: promptChanged,
-            schema: schemaChanged,
-            model: modelChanged,
-          },
-          cases: [],
-        };
-        return {
-          pass: false,
-          message: () => formatDriftMessage(report),
-        };
-      }
-
-      return { pass: true, message: () => '' };
     } catch (err) {
       if (err instanceof TidemarkSnapshotError) {
         return {
