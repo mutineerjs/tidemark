@@ -70,6 +70,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
+    "@jest/globals": "^29.7.0",
     "@mutineerjs/mutineer": "^0.12.6",
     "@standard-schema/spec": "^1.1.0",
     "@types/node": "^25.9.1",
