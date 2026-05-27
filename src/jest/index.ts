@@ -447,4 +447,11 @@ export const tidemarkMatchers = {
   },
 };
 
-expect.extend(tidemarkMatchers);
+// Auto-register matchers at module load time so users just need to add
+// this file to setupFilesAfterFramework (D-10).
+// Guard: when the module is imported inside a non-Jest environment (e.g.,
+// the Vitest-runnable behavioral test that exercises this code path), the
+// global `expect` is not defined and no registration is needed.
+if (typeof expect !== 'undefined') {
+  expect.extend(tidemarkMatchers);
+}
