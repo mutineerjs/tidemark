@@ -42,7 +42,8 @@ import {
 
 declare global {
   namespace jest {
-    interface Matchers<_R> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    interface Matchers<R, T = {}> {
       toMatchTidemarkSnapshot(
         cases: Array<{ name: string; input: unknown }>,
         opts?: TidemarkMatcherOpts
@@ -53,9 +54,9 @@ declare global {
 }
 
 declare module '@jest/expect' {
-  // R is required to match the original @jest/expect Matchers<R> signature (TS2428)
+  // Must match expect's Matchers<R extends void | Promise<void>, T = unknown> (TS2428)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface Matchers<R> {
+  interface Matchers<R extends void | Promise<void>, T = unknown> {
     toMatchTidemarkSnapshot(
       cases: Array<{ name: string; input: unknown }>,
       opts?: TidemarkMatcherOpts
