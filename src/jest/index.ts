@@ -185,6 +185,14 @@ export const tidemarkMatchers = {
 
     // Read metadata from the PromptFn via TIDEMARK_META symbol
     const meta = fn[TIDEMARK_META];
+    if (!meta) {
+      return {
+        pass: false,
+        message: () =>
+          `toMatchTidemarkSnapshot: received function is not a Tidemark promptFn. ` +
+          `Use createPromptFn() to create a promptFn before passing it to expectPromptFn().`,
+      };
+    }
 
     // ---------------------------------------------------------------------------
     // 2. Read Jest state
@@ -448,7 +456,7 @@ export const tidemarkMatchers = {
 };
 
 // Auto-register matchers at module load time so users just need to add
-// this file to setupFilesAfterFramework (D-10).
+// this file to setupFilesAfterEnv (D-10).
 // Guard: when the module is imported inside a non-Jest environment (e.g.,
 // the Vitest-runnable behavioral test that exercises this code path), the
 // global `expect` is not defined and no registration is needed.
