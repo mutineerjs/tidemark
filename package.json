@@ -33,7 +33,12 @@
     "CHANGELOG.md",
     "SECURITY.md"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/jest/index.js",
+    "./dist/jest/index.cjs",
+    "./dist/vitest/index.js",
+    "./dist/vitest/index.cjs"
+  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -52,14 +57,23 @@
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js",
       "require": "./dist/testing/index.cjs"
+    },
+    "./jest": {
+      "types": "./dist/jest/index.d.ts",
+      "import": "./dist/jest/index.js",
+      "require": "./dist/jest/index.cjs"
     }
   },
   "peerDependencies": {
     "vitest": "^4.1.7",
+    "jest": ">=29.0.0",
     "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "vitest": {
+      "optional": true
+    },
+    "jest": {
       "optional": true
     }
   },
