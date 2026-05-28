@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/mutineerjs/tidemark/compare/tidemark-v0.1.0...tidemark-v0.2.0) (2026-05-28)
+
+
+### Features
+
+* **02-01:** add Jest-syntax integration test (D-12, @jest/globals imports) ([51d0a13](https://github.com/mutineerjs/tidemark/commit/51d0a1305b65d8123d0884ba759b53274b56ac37))
+* **02-01:** add Vitest behavioral test for Jest adapter + exclude Jest-syntax test ([40967c1](https://github.com/mutineerjs/tidemark/commit/40967c1ff11736681800e681efbc84d119c0e8f5))
+* **02-01:** create Jest adapter src/jest/index.ts and install @jest/globals ([0e16a07](https://github.com/mutineerjs/tidemark/commit/0e16a07e320b3bf9207d001668bfd4ad9a46870f))
+
+
+### Bug Fixes
+
+* **02:** add null-guard for missing TIDEMARK_META and fix setupFilesAfterEnv comment (CR-01, CR-02) ([0b8967c](https://github.com/mutineerjs/tidemark/commit/0b8967cda36eb5bd4e5da62a24e0d11e11ae0afc))
+* build dist before npm publish in release workflow ([5aa6f14](https://github.com/mutineerjs/tidemark/commit/5aa6f141fdd191b4040def6925b9865249a9d9e3))
+* **jest:** correct Matchers type params to resolve TS2428 ([1256128](https://github.com/mutineerjs/tidemark/commit/1256128094af102ab89b573b49f81fd07879a100))
+
 ## [Unreleased]
 
 ### Added
