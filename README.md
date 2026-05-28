@@ -14,7 +14,11 @@ runner, no SaaS, and no separate prompt store.
 ## Install
 
 ```bash
+# Vitest
 npm install @mutineerjs/tidemark zod vitest
+
+# Jest
+npm install @mutineerjs/tidemark zod jest
 ```
 
 ## Quick Start
@@ -41,7 +45,7 @@ export const classifyFn = createPromptFn({
   adapter,
 });
 
-// Write your snapshot test
+// Write your snapshot test (Vitest)
 import { expectPromptFn } from '@mutineerjs/tidemark/vitest';
 
 it('classifyFn matches snapshot', async () => {
@@ -116,6 +120,73 @@ vitest run                                       # unit tests
 vitest run --config vitest.snapshot.config.ts   # snapshot tests
 ```
 
+## Jest Configuration
+
+Register Tidemark's matchers by adding the entry point to `setupFilesAfterEnv` in your Jest config:
+
+```typescript
+// jest.config.ts
+export default {
+  setupFilesAfterEnv: ['@mutineerjs/tidemark/jest'],
+  testTimeout: 30_000,
+};
+```
+
+Then import from the Jest sub-package in your tests:
+
+```typescript
+import { expectPromptFn } from '@mutineerjs/tidemark/jest';
+
+it('classifyFn matches snapshot', async () => {
+  await expectPromptFn(classifyFn).toMatchSnapshot([
+    { name: 'billing', input: { text: 'charged twice' } },
+    { name: 'general', input: { text: 'update my address' } },
+  ]);
+});
+```
+
+The Jest adapter works identically to the Vitest adapter: first run writes the snapshot, subsequent
+runs detect drift. In CI (`--ci` flag), Jest sets its snapshot mode to `none` and Tidemark skips
+all LLM calls, trusting the committed snapshot.
+
+## Controlling When Drift Checks Run
+
+LLM snapshot tests make real API calls, which is slow and costs money. Tidemark lets you tune how
+often the drift check actually fires on subsequent runs using the `opts` parameter.
+
+**Run on a fixed fraction of test executions:**
+
+```typescript
+// Run the LLM drift check ~20% of the time
+await expectPromptFn(classifyFn).toMatchSnapshot(cases, { sample: 0.2 });
+```
+
+`sample` takes a probability between `0` and `1`. On each run, Tidemark draws a random number — if
+it falls above `sample`, the test passes immediately without calling the LLM.
+
+**Run 1-in-N times:**
+
+```typescript
+// Run the LLM drift check roughly once every 10 test runs
+await expectPromptFn(classifyFn).toMatchSnapshot(cases, { every: 10 });
+```
+
+`every: N` is equivalent to `sample: 1/N`. Use it when you want to think in terms of frequency
+rather than probability.
+
+**When sampling kicks in:** Only the drift check on subsequent runs is gated. First-run baseline
+writes and CI offline mode are not affected — those paths return before the sampling gate.
+
+**Adjust the judge threshold:**
+
+```typescript
+// Require stricter semantic equivalence (default is 0.85)
+await expectPromptFn(classifyFn).toMatchSnapshot(cases, { threshold: 0.95 });
+```
+
+`threshold` controls how similar a string field must be to the baseline for the LLM judge to call
+it equivalent. Lower values tolerate more variation; higher values are stricter.
+
 ## How It Works
 
 **`promptFn` as a typed code artifact.** Define prompts once as `createPromptFn()`. Zod validates
@@ -153,11 +224,28 @@ Options: `{ handlers?: Record<string, Handler>, messages?: ConversationMessage[]
 
 **`fn.stream(input, options?)`** returns a `TidemarkStream` with `for await` text chunks and `.finalOutput()`.
 
-**`expectPromptFn(fn).toMatchSnapshot(cases)`** is the snapshot matcher, exported from `'@mutineerjs/tidemark/vitest'`.
+**`expectPromptFn(fn).toMatchSnapshot(cases, opts?)`** is the snapshot matcher. Exported from
+`'@mutineerjs/tidemark/vitest'` (Vitest) or `'@mutineerjs/tidemark/jest'` (Jest).
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `threshold` | `number` | `0.85` | LLM judge equivalence threshold for string fields (0–1) |
+| `sample` | `number` | — | Probability of running the drift check on subsequent runs (0–1) |
+| `every` | `number` | — | Run drift check 1-in-N times; equivalent to `sample: 1/N` |
+
+`sample` and `every` are mutually exclusive. If both are omitted, the drift check always runs.
 
 **`mockPromptFn(returnValue)`** is a test double exported from `'@mutineerjs/tidemark/testing'`. It returns a `PromptFn` with zero-value cost and latency metadata.
 
 **`new AnthropicAdapter(model, { apiKey? })`** and **`new OpenAIAdapter(model, { apiKey? })`** are the built-in provider adapters.
+
+**Sub-packages:**
+
+| Import path | Test runner | Registration |
+|---|---|---|
+| `@mutineerjs/tidemark/vitest` | Vitest | Add to `setupFiles` in `vitest.config.ts` |
+| `@mutineerjs/tidemark/jest` | Jest | Add to `setupFilesAfterEnv` in `jest.config.ts` |
+| `@mutineerjs/tidemark/testing` | Any | Import `mockPromptFn` in test files |
 
 **`TidemarkCallMeta` fields:** `inputTokens`, `outputTokens`, `estimatedCostUsd`, `responseTimeMs`, `rawRequest`, `rawResponse`.
 
