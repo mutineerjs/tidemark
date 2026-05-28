@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2](https://github.com/mutineerjs/tidemark/compare/tidemark-v0.3.1...tidemark-v0.3.2) (2026-05-28)
+
+
+### Bug Fixes
+
+* trigger release ([a717aa7](https://github.com/mutineerjs/tidemark/commit/a717aa7b39633994d65cbeb9432151db68d97ed3))
+
 ## [0.3.1](https://github.com/mutineerjs/tidemark/compare/tidemark-v0.3.0...tidemark-v0.3.1) (2026-05-28)
 
 
