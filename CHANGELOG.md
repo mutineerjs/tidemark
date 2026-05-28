@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Jest adapter (`@mutineerjs/tidemark/jest`) — drop-in equivalent of the Vitest adapter; register via `setupFilesAfterEnv` in `jest.config.ts` and import `expectPromptFn` from `@mutineerjs/tidemark/jest`
+- `sample` option on `toMatchSnapshot` — probability (0–1) of running the LLM drift check on subsequent test runs; test passes immediately without API calls when skipped
+- `every` option on `toMatchSnapshot` — run the LLM drift check 1-in-N times; shorthand for `sample: 1/N`
+- `threshold` option on `toMatchSnapshot` — override the default LLM judge equivalence threshold (default: 0.85) per test call
+
 ## [0.1.0] - 2026-05-20
 
 ### Added

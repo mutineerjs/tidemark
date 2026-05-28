@@ -22,6 +22,7 @@ src/
   snapshot/     # Snapshot engine, drift detection, judge
   testing/      # mockPromptFn test utility
   vitest/       # Vitest custom matcher
+  jest/         # Jest custom matcher (v0.2)
 examples/       # Runnable examples (require real API keys)
 ```
 
