@@ -1,6 +1,6 @@
 {
   "name": "@mutineerjs/tidemark",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Snapshot testing for LLM features — detect prompt/model/schema drift before production does",
   "author": "Billy Jones",
   "repository": {
