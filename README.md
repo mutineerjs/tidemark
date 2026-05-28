@@ -23,16 +23,16 @@ npm install @mutineerjs/tidemark zod jest
 
 ## Quick Start
 
+Define your `promptFn` in a regular TypeScript module:
+
 ```typescript
-// Define the function
+// src/classify.ts
 import { createPromptFn, AnthropicAdapter } from '@mutineerjs/tidemark';
 import * as z from 'zod';
 
 const adapter = new AnthropicAdapter('claude-sonnet-4-5-20250929', {
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_API_KEY, // never commit API keys
 });
-
-// Never commit API keys. Use environment variables or a secrets manager.
 
 export const classifyFn = createPromptFn({
   name: 'classify',
@@ -44,9 +44,14 @@ export const classifyFn = createPromptFn({
   }),
   adapter,
 });
+```
 
-// Write your snapshot test (Vitest)
+Then import it in your snapshot test file:
+
+```typescript
+// src/classify.snap.test.ts
 import { expectPromptFn } from '@mutineerjs/tidemark/vitest';
+import { classifyFn } from './classify';
 
 it('classifyFn matches snapshot', async () => {
   await expectPromptFn(classifyFn).toMatchSnapshot([
@@ -56,8 +61,9 @@ it('classifyFn matches snapshot', async () => {
 });
 ```
 
-The first run writes `__snapshots__/classify.snap.json`. Subsequent runs fail if the prompt,
-schema, or model changes, with attribution telling you exactly which hash changed.
+The first run writes `__snapshots__/classify.snap.json` next to your test file. Subsequent runs
+fail if the prompt, schema, or model changes, with attribution telling you exactly which hash
+changed.
 
 ## Vitest Configuration
 
